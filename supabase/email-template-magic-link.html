@@ -1,0 +1,92 @@
+<!--
+  SyncedIn — Magic Link email template.
+
+  Paste this into:
+    Supabase → Authentication → Email Templates → Magic Link
+    - Subject: Sign in to SyncedIn
+    - Message body: replace with the HTML below
+
+  Variables used:
+    {{ .ConfirmationURL }}   The magic link the user clicks
+    {{ .Email }}             The recipient's email (optional)
+
+  The design uses inline styles + table layout — required for email clients.
+-->
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Sign in to SyncedIn</title>
+  </head>
+  <body style="margin:0; padding:0; background-color:#080a12; color:#dce3f2; font-family: 'IBM Plex Mono', ui-monospace, Menlo, Monaco, 'Courier New', monospace;">
+    <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="background-color:#080a12;">
+      <tr>
+        <td align="center" style="padding:48px 24px;">
+          <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="max-width:480px;">
+            <!-- Wordmark -->
+            <tr>
+              <td align="left" style="padding-bottom:32px;">
+                <div style="display:inline-block; width:34px; height:34px; background:#11141f; border:1px solid #2f6bff; color:#2f6bff; font-weight:900; font-size:18px; text-align:center; line-height:34px;">&#9678;</div>
+                <span style="display:inline-block; margin-left:10px; font-size:18px; font-weight:700; color:#dce3f2; vertical-align:middle;">Synced<span style="color:#2f6bff;">In</span></span>
+              </td>
+            </tr>
+
+            <!-- Headline -->
+            <tr>
+              <td style="padding-bottom:12px;">
+                <h1 style="margin:0; font-size:28px; line-height:34px; font-weight:600; color:#fafafa; letter-spacing:-0.5px;">Sign in to SyncedIn</h1>
+              </td>
+            </tr>
+
+            <!-- Body copy -->
+            <tr>
+              <td style="padding-bottom:32px;">
+                <p style="margin:0; font-size:15px; line-height:22px; color:#a3a3a3;">
+                  Click the button below to sign in. The link is good for one hour and works on whichever device you opened your email on.
+                </p>
+              </td>
+            </tr>
+
+            <!-- CTA — token_hash link: works in ANY browser, not just the
+                 one that requested it (PKCE links don't survive a browser
+                 switch; this format does). -->
+            <tr>
+              <td style="padding-bottom:32px;">
+                <table role="presentation" cellpadding="0" cellspacing="0" border="0">
+                  <tr>
+                    <td style="background-color:#ffffff; border-radius:8px;">
+                      <a href="{{ .SiteURL }}/auth/callback?token_hash={{ .TokenHash }}&type=email" style="display:inline-block; padding:12px 24px; font-size:15px; font-weight:600; color:#0a0a0a; text-decoration:none; letter-spacing:-0.2px;">Sign in</a>
+                    </td>
+                  </tr>
+                </table>
+              </td>
+            </tr>
+
+            <!-- Fallback link -->
+            <tr>
+              <td style="padding-bottom:32px;">
+                <p style="margin:0 0 6px 0; font-size:12px; color:#737373;">If the button doesn't work, paste this URL into your browser:</p>
+                <p style="margin:0; font-size:12px; color:#a3a3a3; word-break:break-all;">
+                  <a href="{{ .SiteURL }}/auth/callback?token_hash={{ .TokenHash }}&type=email" style="color:#a3a3a3; text-decoration:underline;">{{ .SiteURL }}/auth/callback?token_hash={{ .TokenHash }}&amp;type=email</a>
+                </p>
+              </td>
+            </tr>
+
+            <!-- Divider -->
+            <tr>
+              <td style="border-top:1px solid #262626; padding-top:24px;">
+                <p style="margin:0 0 6px 0; font-size:12px; line-height:18px; color:#737373;">
+                  SyncedIn is an agent-to-agent protocol between people. Your digital twin finds the highest-leverage win-wins with theirs — you stay in control by editing every message before it sends.
+                </p>
+                <p style="margin:8px 0 0 0; font-size:11px; line-height:16px; color:#525252;">
+                  Didn't request this email? You can safely ignore it. The sign-in link expires in 1 hour.
+                </p>
+              </td>
+            </tr>
+          </table>
+        </td>
+      </tr>
+    </table>
+  </body>
+</html>

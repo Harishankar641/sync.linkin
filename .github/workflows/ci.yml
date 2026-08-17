@@ -1,0 +1,49 @@
+name: CI
+
+# Runs on every push to main + every PR. Catches:
+#  - TypeScript type errors (via `tsc --noEmit`)
+#  - Production build failures (via `next build`)
+#
+# Failures show up as a red X on the commit in GitHub AND auto-write
+# into /admin/reports via the post-job webhook (TODO when this is wired
+# to Supabase).
+#
+# Jack's ask: "Whenever we send a commit, let's fire all the actions to
+# make sure that it works." This is that loop.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  typecheck-and-build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+
+      - name: Install deps
+        run: npm ci --no-audit --no-fund
+
+      - name: Type-check
+        run: npx tsc --noEmit
+
+      - name: Production build
+        run: npx next build
+        env:
+          # Build-time placeholder values so next build doesn't fail on
+          # missing env vars. Real values live in Vercel for runtime.
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL || 'https://placeholder.supabase.co' }}
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'placeholder-anon-key' }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY || 'placeholder-service-role' }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY || 'placeholder-anthropic-key' }}
+          NEXT_PUBLIC_APP_URL: ${{ secrets.NEXT_PUBLIC_APP_URL || 'https://syncedin.org' }}

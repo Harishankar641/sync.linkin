@@ -1,0 +1,81 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>CFBundleDevelopmentRegion</key>
+	<string>en</string>
+	<key>CFBundleDisplayName</key>
+        <string>SyncedIn</string>
+	<key>CFBundleExecutable</key>
+	<string>$(EXECUTABLE_NAME)</string>
+	<key>CFBundleIdentifier</key>
+	<string>$(PRODUCT_BUNDLE_IDENTIFIER)</string>
+	<key>CFBundleInfoDictionaryVersion</key>
+	<string>6.0</string>
+	<key>CFBundleName</key>
+	<string>$(PRODUCT_NAME)</string>
+	<key>CFBundlePackageType</key>
+	<string>APPL</string>
+	<key>CFBundleShortVersionString</key>
+	<string>$(MARKETING_VERSION)</string>
+	<key>CFBundleVersion</key>
+	<string>$(CURRENT_PROJECT_VERSION)</string>
+	<key>LSRequiresIPhoneOS</key>
+	<true/>
+	<key>UILaunchStoryboardName</key>
+	<string>LaunchScreen</string>
+	<key>UIMainStoryboardFile</key>
+	<string>Main</string>
+	<key>UIRequiredDeviceCapabilities</key>
+	<array>
+		<string>armv7</string>
+	</array>
+	<key>UISupportedInterfaceOrientations</key>
+	<array>
+		<string>UIInterfaceOrientationPortrait</string>
+		<string>UIInterfaceOrientationLandscapeLeft</string>
+		<string>UIInterfaceOrientationLandscapeRight</string>
+	</array>
+	<key>UISupportedInterfaceOrientations~ipad</key>
+	<array>
+		<string>UIInterfaceOrientationPortrait</string>
+		<string>UIInterfaceOrientationPortraitUpsideDown</string>
+		<string>UIInterfaceOrientationLandscapeLeft</string>
+		<string>UIInterfaceOrientationLandscapeRight</string>
+	</array>
+	<key>UIViewControllerBasedStatusBarAppearance</key>
+	<true/>
+	<!--
+	  Privacy usage descriptions. Apple's static analyzer scans the binary for
+	  references to sensitive APIs in Capacitor's bundled plugins and rejects
+	  the upload (Error 90683) if a matching purpose string is missing.
+	  SyncedIn does not actively use most of these, but the strings are
+	  required because the symbols are linked. Keep these copy short and
+	  user-facing.
+	-->
+	<key>NSContactsUsageDescription</key>
+	<string>SyncedIn can use your contacts to suggest people you might want to connect with on the platform.</string>
+	<key>NSCameraUsageDescription</key>
+	<string>SyncedIn uses the camera so you can capture and share a profile photo or update your twin's context.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>SyncedIn accesses your photo library so you can choose a profile photo or attach an image to a conversation.</string>
+	<key>NSPhotoLibraryAddUsageDescription</key>
+	<string>SyncedIn saves images you choose to share back to your photo library on request.</string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>SyncedIn uses the microphone for voice-to-text dictation when you compose messages with your twin.</string>
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>SyncedIn uses your approximate location to surface nearby members and relevant in-person opportunities.</string>
+	<key>NSFaceIDUsageDescription</key>
+	<string>SyncedIn uses Face ID to quickly and securely sign you back into your account.</string>
+	<key>NSBluetoothAlwaysUsageDescription</key>
+	<string>SyncedIn does not use Bluetooth; this string is required only because a third-party SDK references the API.</string>
+	<key>NSBluetoothPeripheralUsageDescription</key>
+	<string>SyncedIn does not use Bluetooth; this string is required only because a third-party SDK references the API.</string>
+	<key>NSCalendarsUsageDescription</key>
+	<string>SyncedIn can add proposed meetings from your conversations directly to your calendar.</string>
+	<key>NSMotionUsageDescription</key>
+	<string>SyncedIn does not actively use motion data; this string is required only because a third-party SDK references the API.</string>
+	<key>NSSpeechRecognitionUsageDescription</key>
+	<string>SyncedIn uses speech recognition to transcribe your voice notes when composing messages.</string>
+</dict>
+</plist>

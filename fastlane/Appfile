@@ -1,0 +1,12 @@
+app_identifier "org.syncedin.app"
+apple_id ENV["APPLE_ID"] || "jacksonjezi@gmail.com"
+itc_team_id ENV["ITC_TEAM_ID"]
+team_id "XCUTNS56DG"
+
+# JSON key path resolved at runtime — written by CI from the
+# GOOGLE_PLAY_SERVICE_ACCOUNT_JSON secret.
+json_key_file "fastlane/play-service-account.json"
+
+for_platform :android do
+  package_name "org.syncedin.app"
+end

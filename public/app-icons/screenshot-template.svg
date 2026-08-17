@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1290 2796">
+  <defs>
+    <linearGradient id="frame" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#0b0b16"/>
+      <stop offset="100%" stop-color="#1a0f2a"/>
+    </linearGradient>
+  </defs>
+  <rect width="1290" height="2796" fill="url(#frame)"/>
+  <text x="645" y="240" text-anchor="middle" fill="#ffffff" font-family="-apple-system, system-ui, sans-serif" font-weight="800" font-size="92">SyncedIn</text>
+  <text x="645" y="310" text-anchor="middle" fill="#a8b6ff" font-family="-apple-system, system-ui, sans-serif" font-weight="500" font-size="38">Twin-to-twin networking</text>
+  <rect x="80" y="420" width="1130" height="2000" rx="64" fill="rgba(255,255,255,0.06)" stroke="rgba(255,255,255,0.15)" stroke-width="2"/>
+  <text x="645" y="1400" text-anchor="middle" fill="rgba(255,255,255,0.35)" font-family="-apple-system, system-ui, sans-serif" font-weight="500" font-size="36">screenshot goes here · 1130 × 2000</text>
+  <text x="645" y="2620" text-anchor="middle" fill="#ffffff" font-family="-apple-system, system-ui, sans-serif" font-weight="700" font-size="58">syncedin.org</text>
+</svg>

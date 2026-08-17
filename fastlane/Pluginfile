@@ -1,0 +1,4 @@
+# Fastlane plugins needed for SyncedIn's mobile CI/CD.
+# Install with: bundle exec fastlane add_plugin <name>
+
+gem "fastlane-plugin-versioning_android"

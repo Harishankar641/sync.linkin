@@ -1,0 +1,188 @@
+name: Mobile Release
+
+# Auto-build + upload SyncedIn iOS to TestFlight and Android to Play Console
+# Internal Testing on every push to main that touches a native file.
+#
+# Why this exists: Capacitor's server.url points at https://syncedin.org,
+# so the majority of product changes (UI, copy, API routes) hit the apps
+# the moment Vercel deploys — no rebuild needed. The expensive case is
+# changes to capacitor.config.ts, Info.plist, app icon, plugins, or
+# native gradle/pbxproj. Those used to mean a 45-min manual ritual
+# (clean DerivedData → pod install → archive → distribute → upload →
+# go to Play Console → upload AAB → save). This workflow does all of
+# that automatically when one of the watched paths changes.
+#
+# Required GitHub Secrets — see docs/CICD_SECRETS.md for exact extraction
+# steps:
+#   APP_STORE_CONNECT_API_KEY_ID
+#   APP_STORE_CONNECT_API_KEY_ISSUER_ID
+#   APP_STORE_CONNECT_API_KEY_CONTENT   (the .p8 file, raw text)
+#   IOS_DIST_CERTIFICATE_BASE64         (.p12 base64-encoded)
+#   IOS_DIST_CERTIFICATE_PASSWORD
+#   IOS_PROVISIONING_PROFILE_BASE64     (.mobileprovision base64-encoded)
+#   ANDROID_KEYSTORE_BASE64             (.jks base64-encoded)
+#   ANDROID_KEYSTORE_PASSWORD
+#   ANDROID_KEY_ALIAS
+#   ANDROID_KEY_PASSWORD
+#   GOOGLE_PLAY_SERVICE_ACCOUNT_JSON    (service account JSON, raw text)
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "ios/**"
+      - "android/**"
+      - "capacitor.config.ts"
+      - "package.json"
+      - "Gemfile"
+      - "Gemfile.lock"
+      - "fastlane/**"
+      - ".github/workflows/mobile-release.yml"
+  workflow_dispatch:
+    inputs:
+      platforms:
+        description: "Which platforms to build (both, ios, android)"
+        required: true
+        default: "both"
+        type: choice
+        options: [both, ios, android]
+
+jobs:
+  # ----- iOS ------------------------------------------------------------
+  ios:
+    if: github.event_name == 'push' || github.event.inputs.platforms == 'ios' || github.event.inputs.platforms == 'both'
+    runs-on: macos-15
+    timeout-minutes: 45
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+
+      - name: Setup Ruby (for Fastlane + CocoaPods)
+        uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: "3.2"
+          bundler-cache: true
+
+      - name: Install JS deps
+        run: npm ci
+
+      - name: Capacitor sync iOS
+        run: npx cap sync ios
+
+      - name: Install CocoaPods
+        run: |
+          cd ios/App
+          pod install --repo-update
+
+      # Apple rejects uploads built with older SDKs (the runner's default
+      # Xcode 16.4 / iOS 18.5 SDK got: "SDK version issue ... must be built
+      # with the iOS XX SDK or later"). Select the newest non-beta Xcode on
+      # the runner so the archive always uses a current SDK.
+      - name: Select latest Xcode
+        run: |
+          LATEST=$(ls -d /Applications/Xcode_*.app | grep -vi beta | sort -V | tail -1)
+          echo "Selecting $LATEST"
+          sudo xcode-select -s "$LATEST/Contents/Developer"
+          xcodebuild -version
+
+      # Persist the CI-owned distribution cert + private key across runs so
+      # the ios lane reuses it instead of minting (and eventually exhausting)
+      # new Apple Distribution certs. Split restore/save (instead of plain
+      # actions/cache) because the combined action only saves when the job
+      # SUCCEEDS — a failure after cert creation would lose the new private
+      # key and force a revoke-and-mint churn on the next run. The save step
+      # below runs with if: always().
+      - name: Restore iOS distribution cert
+        uses: actions/cache/restore@v4
+        with:
+          path: fastlane/ci-certs
+          key: ios-dist-cert-v1-${{ github.run_id }}
+          restore-keys: |
+            ios-dist-cert-v1-
+
+      - name: Build + upload to TestFlight via Fastlane
+        env:
+          APP_STORE_CONNECT_API_KEY_ID: ${{ secrets.APP_STORE_CONNECT_API_KEY_ID }}
+          APP_STORE_CONNECT_API_KEY_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_API_KEY_ISSUER_ID }}
+          APP_STORE_CONNECT_API_KEY_CONTENT: ${{ secrets.APP_STORE_CONNECT_API_KEY_CONTENT }}
+        run: bundle exec fastlane ios beta
+
+      # Save the cert+key even if the build failed — losing a freshly minted
+      # private key forces another revoke-and-mint cycle next run.
+      - name: Save iOS distribution cert
+        if: always()
+        uses: actions/cache/save@v4
+        with:
+          path: fastlane/ci-certs
+          key: ios-dist-cert-v1-${{ github.run_id }}
+
+  # ----- Android --------------------------------------------------------
+  android:
+    if: github.event_name == 'push' || github.event.inputs.platforms == 'android' || github.event.inputs.platforms == 'both'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+
+      - name: Setup JDK 21 (matches AGP 8.x target)
+        uses: actions/setup-java@v4
+        with:
+          distribution: "temurin"
+          java-version: "21"
+
+      - name: Setup Ruby (for Fastlane)
+        uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: "3.2"
+          bundler-cache: true
+
+      - name: Install JS deps
+        run: npm ci
+
+      - name: Capacitor sync Android
+        run: npx cap sync android
+
+      - name: Install Android signing keystore
+        env:
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+        run: |
+          mkdir -p android/app
+          echo "$ANDROID_KEYSTORE_BASE64" | base64 --decode > android/app/release.keystore
+
+      - name: Provision google-services.json (push notifications)
+        env:
+          GOOGLE_SERVICES_JSON_BASE64: ${{ secrets.GOOGLE_SERVICES_JSON_BASE64 }}
+        run: |
+          if [ -n "$GOOGLE_SERVICES_JSON_BASE64" ]; then
+            echo "$GOOGLE_SERVICES_JSON_BASE64" | base64 --decode > android/app/google-services.json
+            echo "google-services.json provisioned — push enabled in this build"
+          else
+            echo "No GOOGLE_SERVICES_JSON_BASE64 secret — building without Android push"
+          fi
+
+      - name: Write Google Play service account JSON
+        env:
+          GOOGLE_PLAY_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_PLAY_SERVICE_ACCOUNT_JSON }}
+        run: |
+          mkdir -p fastlane
+          echo "$GOOGLE_PLAY_SERVICE_ACCOUNT_JSON" > fastlane/play-service-account.json
+
+      - name: Build + upload to Play Internal via Fastlane
+        env:
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: bundle exec fastlane android beta

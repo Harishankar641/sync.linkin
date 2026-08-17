@@ -1,0 +1,240 @@
+# SyncedIn — Fastlane config for CI/CD mobile releases.
+#
+# Two lanes:
+#   bundle exec fastlane ios beta       → archive + upload to TestFlight
+#   bundle exec fastlane android beta   → build AAB + upload to Play Internal
+#
+# Both auto-bump the build number (CFBundleVersion / versionCode) based on
+# the latest already-uploaded build, so you never have to manually edit
+# the build number again. Marketing version (1.0, 1.1, ...) stays
+# committed in the repo and is the source of truth.
+
+# --------------------------------------------------------------------- iOS
+platform :ios do
+  desc "Archive + upload to TestFlight (Public Beta external group)"
+  lane :beta do
+    # Pull a fresh App Store Connect API key in-memory.
+    api_key = app_store_connect_api_key(
+      key_id: ENV["APP_STORE_CONNECT_API_KEY_ID"],
+      issuer_id: ENV["APP_STORE_CONNECT_API_KEY_ISSUER_ID"],
+      key_content: ENV["APP_STORE_CONNECT_API_KEY_CONTENT"],
+      duration: 1200,
+      in_house: false
+    )
+
+    # Auto-bump CFBundleVersion to (latest TestFlight build + 1). Means
+    # we never collide with an earlier upload even if we forget to bump.
+    latest = latest_testflight_build_number(
+      api_key: api_key,
+      app_identifier: "org.syncedin.app",
+      initial_build_number: 0
+    )
+    increment_build_number(
+      xcodeproj: "ios/App/App.xcodeproj",
+      build_number: latest + 1
+    )
+
+    # Self-contained MANUAL signing via the App Store Connect API key. We do
+    # NOT use xcodebuild cloud-managed signing (-allowProvisioningUpdates):
+    # that requires an Admin-role key and dies with "Cloud signing permission
+    # error / No signing certificate 'iOS Distribution' found". Instead we:
+    #   1. make a throwaway CI keychain,
+    #   2. fetch/create the Apple Distribution certificate into it via the API
+    #      key (get_certificates),
+    #   3. fetch/create the App Store provisioning profile via the API key
+    #      (get_provisioning_profile),
+    #   4. point the project at that exact cert + profile (manual signing),
+    #   5. archive + export with signingStyle "manual".
+    # This is fully headless and needs no Apple ID logged in on the runner.
+    keychain_name = "syncedin-ci.keychain"
+    keychain_password = "ci-#{Time.now.to_i}"
+    delete_keychain(name: keychain_name) if File.exist?(
+      File.expand_path("~/Library/Keychains/#{keychain_name}-db")
+    )
+    create_keychain(
+      name: keychain_name,
+      password: keychain_password,
+      default_keychain: true,
+      unlock: true,
+      timeout: 3600,
+      lock_when_sleeps: false
+    )
+    keychain_path = File.expand_path("~/Library/Keychains/#{keychain_name}-db")
+
+    # Apple Distribution certificate. The CI workflow caches fastlane/ci-certs
+    # across runs (actions/cache), so once CI mints its own cert + private
+    # key, every later run re-imports it and reuses instead of creating.
+    require "fileutils"
+    certs_dir = File.expand_path("ci-certs", __dir__)
+    FileUtils.mkdir_p(certs_dir)
+    Dir[File.join(certs_dir, "*.p12")].each do |p12|
+      import_certificate(
+        certificate_path: p12,
+        certificate_password: "",
+        keychain_path: keychain_path,
+        keychain_password: keychain_password
+      )
+    end
+    Dir[File.join(certs_dir, "*.cer")].each do |cer|
+      import_certificate(
+        certificate_path: cer,
+        keychain_path: keychain_path,
+        keychain_password: keychain_password
+      )
+    end
+
+    fetch_cert = lambda do
+      get_certificates(
+        api_key: api_key,
+        development: false,
+        keychain_path: keychain_path,
+        keychain_password: keychain_password,
+        output_path: certs_dir
+      )
+    end
+    begin
+      fetch_cert.call
+    rescue => e
+      # Apple caps Apple Distribution certs (2). If the slots are full and
+      # none of their private keys are on this runner, free a slot by
+      # revoking the soonest-expiring one, then mint a CI-owned cert.
+      # (Explicitly approved by Jack: ship by any means.) sigh(force: true)
+      # below rebuilds the App Store profile against the new cert, so
+      # signing self-heals end to end.
+      raise unless e.message.to_s.include?("maximum number")
+      UI.important("Distribution cert slots full. None of the existing certs' private keys exist on CI (or anywhere CI can reach), so they're unusable here — revoking ALL of them so CI can mint and own a fresh one. Already-shipped TestFlight/App Store builds are unaffected; local Xcode regenerates signing automatically next archive.")
+      require "spaceship"
+      Spaceship::ConnectAPI.token = Spaceship::ConnectAPI::Token.from(hash: api_key)
+      doomed = Spaceship::ConnectAPI::Certificate.all
+        .select { |c| c.certificate_type == "DISTRIBUTION" }
+      if doomed.empty?
+        UI.user_error!("Apple reports the cert limit but no DISTRIBUTION certificates are visible — the API key role cannot manage certificates. Generate an App Store Connect API key with the Admin role and update the APP_STORE_CONNECT_API_KEY_ID/_CONTENT secrets.")
+      end
+      doomed.each do |c|
+        UI.important("Revoking distribution certificate #{c.id} (expires #{c.expiration_date})")
+        Spaceship::ConnectAPI.delete_certificate(certificate_id: c.id)
+      end
+      begin
+        fetch_cert.call
+      rescue => e2
+        raise unless e2.message.to_s.include?("maximum number")
+        UI.user_error!("Apple still refuses to create a distribution certificate even with zero DISTRIBUTION certs left. fastlane's 'maximum number' message is masking a permissions failure: this API key's role cannot create certificates. Generate a new App Store Connect API key with the Admin role and update the APP_STORE_CONNECT_API_KEY_ID and APP_STORE_CONNECT_API_KEY_CONTENT secrets — everything else in this pipeline is already proven.")
+      end
+    end
+
+    # App Store provisioning profile for the bundle id. force: true
+    # regenerates it to include the cert we just installed — required the
+    # first time (old profile references the revoked cert) and harmless
+    # afterwards.
+    get_provisioning_profile(
+      api_key: api_key,
+      app_identifier: "org.syncedin.app",
+      platform: "ios",
+      force: true
+    )
+    # Read the profile name from lane_context — the canonical source. The
+    # raw ENV["sigh_..._profile-name"] lookup came back nil on CI, which left
+    # the project with Manual signing and NO profile ("App requires a
+    # provisioning profile" at archive).
+    profile_name = lane_context[SharedValues::SIGH_NAME].to_s
+    UI.user_error!("sigh did not produce a profile name") if profile_name.empty?
+    UI.success("Using provisioning profile: #{profile_name}")
+
+    update_code_signing_settings(
+      path: "ios/App/App.xcodeproj",
+      use_automatic_signing: false,
+      team_id: "XCUTNS56DG",
+      bundle_identifier: "org.syncedin.app",
+      code_sign_identity: "Apple Distribution",
+      profile_name: profile_name
+    )
+
+    build_app(
+      workspace: "ios/App/App.xcworkspace",
+      scheme: "App",
+      configuration: "Release",
+      export_method: "app-store",
+      output_directory: "build/ios",
+      output_name: "SyncedIn.ipa",
+      clean: true,
+      # Belt and braces: force the specifier on the xcodebuild command line
+      # too, so the archive can never run Manual-with-no-profile again.
+      xcargs: "PROVISIONING_PROFILE_SPECIFIER='#{profile_name}'",
+      export_options: {
+        signingStyle: "manual",
+        provisioningProfiles: {
+          "org.syncedin.app" => profile_name
+        }
+      }
+    )
+
+    # Upload to TestFlight. Skip waiting for processing so the CI job
+    # finishes fast — App Store Connect handles processing async and the
+    # auto-distribute setting on the Public Beta group picks it up.
+    upload_to_testflight(
+      api_key: api_key,
+      ipa: "build/ios/SyncedIn.ipa",
+      skip_waiting_for_build_processing: true,
+      changelog: build_changelog
+    )
+  end
+
+  # Format the last 5 commits as the TestFlight "What to Test" notes so
+  # testers see what changed since the last upload.
+  def build_changelog
+    log = `git log -5 --pretty=format:"• %s" 2>/dev/null`.to_s.strip
+    log.empty? ? "Bug fixes and improvements." : log
+  end
+end
+
+# --------------------------------------------------------------------- Android
+platform :android do
+  desc "Build AAB + upload to Play Console Internal Testing"
+  lane :beta do
+    # versionCode = current Unix epoch seconds. This is always strictly
+    # increasing (time only moves forward) and is globally unique across
+    # EVERY Play track + draft, so we can never collide with a code that's
+    # already been used (the failure mode of querying a single track's max
+    # and adding 1 — a code can exist in a draft/other track and 'max+1'
+    # still collides). Epoch seconds in this era (~1.78e9) sit well under
+    # Play's 2.1e9 versionCode ceiling, with headroom past 2030.
+    play_json = "fastlane/play-service-account.json"
+    next_code = Time.now.to_i
+
+    android_set_version_code(
+      version_code: next_code,
+      gradle_file: "android/app/build.gradle"
+    )
+
+    # Build signed AAB.
+    gradle(
+      project_dir: "android",
+      task: "bundleRelease",
+      properties: {
+        "android.injected.signing.store.file" => File.expand_path(
+          "../android/app/release.keystore", __dir__
+        ),
+        "android.injected.signing.store.password" => ENV["ANDROID_KEYSTORE_PASSWORD"],
+        "android.injected.signing.key.alias" => ENV["ANDROID_KEY_ALIAS"],
+        "android.injected.signing.key.password" => ENV["ANDROID_KEY_PASSWORD"]
+      }
+    )
+
+    # Upload to Play Console Internal Testing track. We now ALSO push the
+    # store-listing hi-res icon (fastlane/metadata/android/en-US/images/
+    # icon.png) so the Play Store page stops showing the auto-generated
+    # "infinity" placeholder. Text metadata + screenshots stay skipped, so
+    # only the icon image is touched.
+    upload_to_play_store(
+      package_name: "org.syncedin.app",
+      track: "internal",
+      json_key: play_json,
+      aab: "android/app/build/outputs/bundle/release/app-release.aab",
+      skip_upload_apk: true,
+      skip_upload_metadata: true,
+      skip_upload_images: false,
+      skip_upload_screenshots: true,
+      release_status: "completed"
+    )
+  end
+end
