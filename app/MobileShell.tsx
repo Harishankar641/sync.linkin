@@ -256,46 +256,41 @@ export function MobileShell({
           />
           {children}
         </div>
-        <style>{`
-          /* Wordmark is now SHOWN inside the mobile drawer too (Jack:
-             "on mobile in menu logo isnt visible lets bring that back").
-             The hide rules below used to kill it because earlier the
-             drawer had its own top bar; now the drawer's only chrome is
-             the 3px sweep band, so the Sidebar's wordmark gets to act
-             as the menu header without competing. We still keep tight
-             padding overrides so the nav items don't sit miles below
-             the wordmark. */
-          .syncedin-mobile-drawer > div {
-            padding-top: 6px !important;
-            padding-left: 6px !important;
-            padding-right: 6px !important;
-            gap: 6px !important;
-            /* Lock horizontal extent — nothing inside the sidebar can
-               push past the drawer's 280px / 86vw column. Fixes the
-               horizontal-pan bug Jack flagged. */
-            max-width: 100% !important;
-            overflow-x: hidden !important;
-            box-sizing: border-box !important;
-          }
-          /* Wrap long URLs / conference titles inside the drawer so
-             they don't blow the column out horizontally. */
-          .syncedin-mobile-drawer a,
-          .syncedin-mobile-drawer span,
-          .syncedin-mobile-drawer div {
-            word-break: break-word;
-            overflow-wrap: anywhere;
-            min-width: 0;
-          }
-          .syncedin-mobile-drawer img.wordmark-themed,
-          .syncedin-mobile-drawer img[src*="syncedin-wordmark"] {
-            max-height: 28px !important;
-            width: auto !important;
-          }
-          @keyframes drawerSweep {
-            0%   { background-position: 0% 50%; }
-            100% { background-position: 200% 50%; }
-          }
-        `}</style>
+       <style suppressHydrationWarning>{`
+  .syncedin-mobile-drawer > div {
+    padding-top: 6px !important;
+    padding-left: 6px !important;
+    padding-right: 6px !important;
+    gap: 6px !important;
+    max-width: 100% !important;
+    overflow-x: hidden !important;
+    box-sizing: border-box !important;
+  }
+
+  .syncedin-mobile-drawer a,
+  .syncedin-mobile-drawer span,
+  .syncedin-mobile-drawer div {
+    word-break: break-word;
+    overflow-wrap: anywhere;
+    min-width: 0;
+  }
+
+  .syncedin-mobile-drawer img.wordmark-themed,
+  .syncedin-mobile-drawer img[src*="syncedin-wordmark"] {
+    max-height: 28px !important;
+    width: auto !important;
+  }
+
+  @keyframes drawerSweep {
+    0% {
+      background-position: 0% 50%;
+    }
+
+    100% {
+      background-position: 200% 50%;
+    }
+  }
+`}</style>
       </div>
     </>
   );
