@@ -523,6 +523,17 @@ function openAICompatProviders(model?: string): OpenAICompatProvider[] {
       }
     },
     {
+  name: "openrouter-ox-alpha",
+  apiKey: process.env.OPENROUTER_OX_ALPHA_API_KEY || "",
+  baseUrl: "https://openrouter.ai/api/v1/chat/completions",
+  model: "stealth/ox-alpha",
+  extraHeaders: {
+    "HTTP-Referer":
+      process.env.NEXT_PUBLIC_APP_URL || "https://syncedin.org",
+    "X-Title": "SyncedIn - Ox Alpha"
+  }
+},
+    {
       name: "mistral",
       apiKey: process.env.MISTRAL_API_KEY || "",
       baseUrl: "https://api.mistral.ai/v1/chat/completions",
