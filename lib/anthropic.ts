@@ -778,7 +778,14 @@ async function create(params: CreateParams): Promise<AnthropicResponse> {
       // 400 (bad request — our own bug) would fail identically on every
       // provider, so surface it immediately rather than burning through
       // the whole chain for nothing.
-      if (!isTransient(e) && e?.status !== 401 && e?.status !== 403) throw e;
+      if (
+  !isTransient(e) &&
+  e?.status !== 401 &&
+  e?.status !== 402 &&
+  e?.status !== 403
+) {
+  throw e;
+}
     }
   }
   throw lastErr;
@@ -829,7 +836,14 @@ function streamCreate(
         console.warn(
           `[ai-chain:stream] ${attempt.name} failed (status ${e?.status}): ${e?.message} — trying next provider`
         );
-        if (!isTransient(e) && e?.status !== 401 && e?.status !== 403) throw e;
+        if (
+  !isTransient(e) &&
+  e?.status !== 401 &&
+  e?.status !== 402 &&
+  e?.status !== 403
+) {
+  throw e;
+}
       }
     }
     throw lastErr;
