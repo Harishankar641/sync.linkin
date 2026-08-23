@@ -14,6 +14,7 @@ import { useState, useRef, useEffect, useCallback } from "react";
 import Link from "next/link";
 import type { Message } from "@/lib/types";
 import { Avatar } from "../../Avatar";
+import { OpportunityOutcome } from "../../dashboard/OpportunityOutcome";
 // Jack: "let's make their profile page clickable if I click on the icon
 // of their photo." Wrapping the counterpart Avatar inside TwinLink in a
 // Next Link uses the same router prefetch the rest of the app does.
@@ -191,7 +192,7 @@ function SchedulePanel({
           title={
             otherEmail
               ? `Pre-invites ${otherEmail}`
-              : "No email on file for counterpart — invite will be empty"
+              : "No email on file for counterpart - invite will be empty"
           }
         >
           □ Google Calendar{otherEmail ? " · invites them" : ""}
@@ -819,7 +820,8 @@ export function ChatUI({
   initialOtherResponse,
   otherLastReadAt,
   initialSummary = null,
-  autoStart = false
+  autoStart = false,
+  opportunityOutcome = null
 }: {
   conversationId: string;
   selfUserId: string;
@@ -860,6 +862,11 @@ export function ChatUI({
   } | null;
   /** Start a live test persona conversation immediately after Twin Lab creates it. */
   autoStart?: boolean;
+  opportunityOutcome?: {
+    introductionRequestId: string;
+    opportunityId: string;
+    conversationId: string;
+  } | null;
 }) {
   const [messages, setMessages] = useState<Message[]>(initialMessages);
   const [done, setDone] = useState(initialDone);
@@ -1027,10 +1034,10 @@ export function ChatUI({
   const [agreementCollapsed, setAgreementCollapsed] = useState(true);
   useEffect(() => {
     if (typeof window === "undefined") return;
-    // Match the .conv-action-rail breakpoint (also lowered to 1200).
-    // When the rail is showing, the deal panel docks in it expanded.
+    // Match the .conv-action-rail breakpoint. The rail docks only when
+    // there is enough desktop width; otherwise it stays inline.
     // Below that, default-collapsed so it doesn't cover the input.
-    const mq = window.matchMedia("(min-width: 1200px)");
+    const mq = window.matchMedia("(min-width: 1280px)");
     const apply = () => setAgreementCollapsed(!mq.matches);
     apply();
     // Re-evaluate on resize so dragging the browser between widths
@@ -1084,6 +1091,11 @@ export function ChatUI({
   const otherReadAt = otherLastReadAt ? new Date(otherLastReadAt) : null;
 
   const scrollerRef = useRef<HTMLDivElement>(null);
+  const attachmentInputRef =
+  useRef<HTMLInputElement>(null);
+
+const [selectedAttachment, setSelectedAttachment] =
+  useState<File | null>(null);
   const firstScrollRef = useRef(true);
   const startedRef = useRef(false);
 
@@ -1652,7 +1664,7 @@ export function ChatUI({
 
   return (
     <main
-      className="max-w-2xl mx-auto px-4 py-4 flex flex-col h-[calc(100dvh-56px)] lg:h-[calc(100dvh-64px)] overflow-hidden conv-main"
+      className="w-full max-w-none px-4 py-4 flex flex-col h-[calc(100dvh-56px)] lg:h-[calc(100dvh-64px)] overflow-hidden conv-main conversation-layout"
       // 100dvh - top-bar height so main exactly fills the remaining
       // viewport (messages-scroll handles all internal scroll, no
       // body scroll). dvh (not vh) so mobile address-bar retraction
@@ -1677,58 +1689,71 @@ export function ChatUI({
         />
       )}
       <style>{`
-        @media (min-width: 1024px) {
-          .conv-main {
-            /* Push the chat column right past the fixed sidebar
-               (left:16 width:200 — matched to AppShell) + gap +
-               conv rail (left:232 width:132, widened so twin names
-               aren't ellipsis-cut to ~4 characters) + small buffer.
-               16 + 200 + 16 + 132 + 18 = 382. */
-            margin-left: 382px !important;
-            margin-right: auto !important;
-            /* Cap so on very wide screens we don't stretch the
-               chat across the entire viewport. */
-            max-width: min(672px, calc(100vw - 382px - 24px));
-          }
-        }
-        @media (min-width: 1200px) {
-          .conv-main {
-            /* When the right rail is active (≥1200 per the
-               .conv-action-rail rules below — dropped from 1440 so the
-               rail kicks in on standard 13-14" laptop widths instead
-               of stranding the outcome / deal panels under the chat),
-               reserve room on the right too. Rail is 300px + 28px
-               offset + 8px gap = 336px on this side. Subtract that +
-               the 360px left chrome. */
-            max-width: min(672px, calc(100vw - 360px - 336px));
-          }
-        }
-        /* Mobile-only chrome reductions (Jack: "There's really no
-           room on this mobile view. There's lots of room to be saved
-           around the profile photos and the ability to collapse the
-           outcome.") */
-        @media (max-width: 767px) {
-          /* Shrink the twin-link avatar pair to ~32px (40 * 0.78) so
-             the header eats less vertical space. Transform-origin
-             keeps it left-anchored so the name block doesn't shift. */
-          .conv-twin-link {
-            transform: scale(0.78);
-            transform-origin: left center;
-            margin-right: -10px;
-          }
-          /* Hide the "< messages" inline back link — mobile browsers
-             have native back gestures + we have a bottom-bar back arrow,
-             so this row is duplicate chrome eating a full line of pixels. */
-          .conv-back-link { display: none !important; }
-          /* Hide the right-click / double-click instruction strip —
-             touch users can't right-click and the inline ✎ edit
-             button on each bubble already teaches the action. */
-          .conv-bottom-hint { display: none !important; }
-          /* Smaller status line under the names. */
-          .conv-status-line { font-size: 10px !important; }
-          /* Tighter header padding-bottom. */
-          .conv-header { padding-bottom: 8px !important; }
-        }
+        /* =========================================================
+   CONVERSATION COLUMN
+   Keep the chat completely separate from the right rail.
+   ========================================================= */
+
+.conv-main {
+  min-width: 0 !important;
+  box-sizing: border-box;
+}
+
+/* Desktop */
+@media (min-width: 1024px) {
+  .conv-main {
+    margin-left: 382px !important;
+    margin-right: 0 !important;
+
+    width: calc(100vw - 382px - 24px) !important;
+
+    max-width: none !important;
+    min-width: 0 !important;
+
+    box-sizing: border-box;
+  }
+}
+
+/* Desktop when right action rail is present */
+@media (min-width: 1280px) {
+  .conv-main {
+    margin-left: 382px !important;
+
+    /*
+      330px = right action rail
+      24px  = rail right margin
+      24px  = safety gap
+    */
+    margin-right: 378px !important;
+
+    width: calc(100vw - 382px - 378px) !important;
+
+    max-width: none !important;
+    min-width: 0 !important;
+
+    box-sizing: border-box;
+  }
+}
+
+/* Tablet */
+@media (min-width: 768px) and (max-width: 1023px) {
+  .conv-main {
+    width: 100% !important;
+    max-width: 100% !important;
+    margin-left: 0 !important;
+    margin-right: 0 !important;
+  }
+}
+
+/* Mobile */
+@media (max-width: 767px) {
+  .conv-main {
+    width: 100% !important;
+    max-width: 100% !important;
+    margin-left: 0 !important;
+    margin-right: 0 !important;
+  }
+}
       `}</style>
       {(() => {
         // Short label helpers — emails crammed into a single row with two
@@ -1823,15 +1848,76 @@ export function ChatUI({
                   )}
                   {/* Per-convo funny-mode toggle. When on, twin prompt
                       swaps to personality-forward wiring. */}
-                  <FunnyModeToggle conversationId={conversationId} />
-                  {/* Audio + video call launchers — opens a Jitsi
-                      iframe + tldraw dream board side-by-side. On
-                      end, the pasted transcript appends to BOTH
-                      participants' twin context. */}
-                  <CallButton
-                    conversationId={conversationId}
-                    otherName={other.name}
-                  />
+                 
+                 <FunnyModeToggle conversationId={conversationId} />
+
+{/* Audio + video call launchers */}
+<div
+  style={{
+    display: "flex",
+    alignItems: "center",
+    gap: 8
+  }}
+>
+  {/* Existing video/call button */}
+  <CallButton
+    conversationId={conversationId}
+    otherName={other.name}
+  />
+
+  {/* File attachment */}
+  <button
+    type="button"
+    className="retro-btn"
+    title="Attach file"
+    aria-label="Attach file"
+    onClick={() =>
+      attachmentInputRef.current?.click()
+    }
+    style={{
+      width: 42,
+      height: 42,
+      minWidth: 42,
+      padding: 0,
+      display: "inline-flex",
+      alignItems: "center",
+      justifyContent: "center",
+      borderRadius: 12,
+      borderColor: "var(--border)",
+      color: "var(--text)"
+    }}
+  >
+    <svg
+      width="20"
+      height="20"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <path d="M21.44 11.05l-9.19 9.19a6 6 0 01-8.49-8.49l9.19-9.19a4 4 0 015.66 5.66l-9.2 9.19a2 2 0 01-2.83-2.83l8.49-8.48" />
+    </svg>
+  </button>
+
+  <input
+    ref={attachmentInputRef}
+    type="file"
+    hidden
+    onChange={(event) => {
+      const file =
+        event.target.files?.[0] ?? null;
+
+      setSelectedAttachment(file);
+
+      event.target.value = "";
+    }}
+  />
+</div>
+
+<div className="conv-status-line retro-dim text-xs flex items-center gap-1.5 mt-0.5"></div>
                 </div>
                 <div className="conv-status-line retro-dim text-xs flex items-center gap-1.5 mt-0.5">
                   <span>
@@ -2259,70 +2345,214 @@ export function ChatUI({
           inline at the bottom of the chat. */}
       <div className="conv-action-rail">
         <style>{`
-          /* Mobile / tablet / narrow desktop (<1200): inline (default
-             block flow). Panels appear after the message stream but
-             before the input. Saves us from cramming a 300px rail
-             into a viewport that doesn't have room for it.
-             Jack: 'still has a ton of blank space in between outcome,
-             proposed final destination, and the actual messages.'
-             Tightened: no top margin on the rail wrapper, panels
-             inside use a single 6px gap instead of stacked mb-2's. */
-          .conv-action-rail {
-            display: block;
-            margin-top: 0;
-          }
-          .conv-action-rail > * + * { margin-top: 6px; }
-          .conv-action-rail .retro-panel { margin-bottom: 0 !important; }
+      /* =========================================================
+   CONVERSATION ACTION RAIL
+   ========================================================= */
 
-          /* Right rail engages at ≥1200px now (was 1440). Jack:
-             "when I make the thing a bit smaller, it puts it on the
-             bottom when it doesn't need to." 13-14" laptop widths
-             (1280-1366) now show the rail inline next to the chat
-             instead of dumping outcome + deal below the input.
-             Width trimmed 330 → 300 so the chat column has more
-             breathing room on the narrower end of that range. */
-          @media (min-width: 1200px) {
-            .conv-action-rail {
-              position: fixed;
-              top: 96px;
-              right: 28px;
-              width: 300px;
-              max-height: calc(100dvh - 120px);
-              overflow-y: auto;
-              z-index: 6;
-              padding-left: 4px;
-            }
-            .conv-action-rail::-webkit-scrollbar { width: 6px; }
-            .conv-action-rail::-webkit-scrollbar-thumb {
-              background: rgba(120, 130, 160, 0.25);
-              border-radius: 3px;
-            }
-            /* Jack: "accept the final shouldn't need a scroll down."
-               The rail is a flex column bounded by the viewport; every
-               card keeps natural height EXCEPT the deal panel, which
-               shrinks to the remaining space and scrolls its BODY
-               internally, so the status line + Accept/Reject buttons
-               are always on screen no matter how long the agreement. */
-            .conv-action-rail {
-              display: flex;
-              flex-direction: column;
-            }
-            .conv-action-rail > * { flex: 0 0 auto; }
-            .conv-action-rail .conv-deal-panel {
-              flex: 0 1 auto;
-              min-height: 0;
-              display: flex;
-              flex-direction: column;
-              overflow: hidden;
-            }
-            .conv-action-rail .conv-deal-body {
-              flex: 1 1 auto;
-              min-height: 0;
-              max-height: none !important;
-              overflow-y: auto;
-            }
-          }
-        `}</style>
+.conv-action-rail {
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
+
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+
+  margin: 0;
+  padding: 0;
+
+  min-width: 0;
+  min-height: 0;
+}
+
+.conv-action-rail > * {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+  flex: 0 0 auto;
+}
+
+.conv-action-rail .retro-panel {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  margin: 0 !important;
+  box-sizing: border-box;
+}
+
+
+/* =========================================================
+   DESKTOP
+   ========================================================= */
+
+@media (min-width: 1280px) {
+  .conv-action-rail {
+    position: fixed;
+
+    top: 88px;
+    right: 24px;
+    bottom: 20px;
+
+    width: 330px;
+
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+
+    padding: 0 6px 10px 0;
+
+    overflow-x: hidden;
+    overflow-y: auto;
+
+    box-sizing: border-box;
+
+    z-index: 20;
+    isolation: isolate;
+  }
+
+  /*
+   * Reserve space for the fixed action rail.
+   */
+  .conversation-layout {
+    width: calc(100% - 378px);
+    max-width: none;
+
+    margin-left: 0;
+    margin-right: 378px;
+
+    box-sizing: border-box;
+  }
+
+  .conv-action-rail::-webkit-scrollbar {
+    width: 6px;
+  }
+
+  .conv-action-rail::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  .conv-action-rail::-webkit-scrollbar-thumb {
+    background: rgba(120, 130, 160, 0.30);
+    border-radius: 8px;
+  }
+
+  .conv-action-rail::-webkit-scrollbar-thumb:hover {
+    background: rgba(120, 130, 160, 0.50);
+  }
+}
+
+
+/* =========================================================
+   TABLET
+   ========================================================= */
+
+@media (min-width: 768px) and (max-width: 1279px) {
+  .conv-action-rail {
+    position: relative;
+
+    width: 100%;
+    max-width: 100%;
+
+    margin-top: 12px;
+
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+
+    overflow: visible;
+  }
+
+  .conversation-layout {
+    width: 100%;
+    max-width: 100%;
+    margin-left: 0;
+    margin-right: 0;
+    box-sizing: border-box;
+  }
+}
+
+
+/* =========================================================
+   MOBILE
+   ========================================================= */
+
+@media (max-width: 767px) {
+  .conv-action-rail {
+    position: relative;
+
+    width: 100%;
+    max-width: 100%;
+
+    margin-top: 10px;
+
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+
+    overflow: visible;
+  }
+
+  .conversation-layout {
+    width: 100%;
+    max-width: 100%;
+    margin-left: 0;
+    margin-right: 0;
+    box-sizing: border-box;
+  }
+}
+
+
+/* =========================================================
+   SAFETY
+   ========================================================= */
+
+.conv-action-rail textarea {
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
+}
+
+.conv-action-rail button {
+  box-sizing: border-box;
+  max-width: 100%;
+}
+
+
+/* =========================================================
+   OPPORTUNITY OUTCOME
+   ========================================================= */
+
+.conversation-opportunity-outcome {
+  width: 100%;
+  max-width: 100%;
+
+  margin-top: 16px;
+  margin-bottom: 24px;
+  padding-bottom: 24px;
+
+  box-sizing: border-box;
+
+  position: relative;
+  z-index: 1;
+}
+
+.conversation-opportunity-outcome > * {
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
+}
+
+.conversation-opportunity-outcome .retro-panel {
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
+}
+`}</style>
+
+
+
+              
       {/* About the counterpart — Jack: "the About part's useful to keep
           there before even the outcome." Lifted out of the OUTCOME card
           so it reads as its own block ABOVE the outcome in the rail. */}
@@ -3002,18 +3232,38 @@ export function ChatUI({
                       counterText.trim() === (lastAgreement ?? "").trim()
                     }
                     className="retro-btn retro-btn-primary text-xs"
-                    style={{ padding: "6px 12px" }}
-                  >
-                    {running ? "saving…" : "save counter"}
-                  </button>
-                </div>
-              </div>
-            </div>
-          )}
-        </div>
-      )}
+style={{ padding: "6px 12px" }}
+>
+  {running ? "saving…" : "save counter"}
+</button>
+</div>
+</div>
+</div>
+)}
+</div>
+)}
+
+
+
+
 
       </div>{/* /conv-action-rail */}
+
+      {opportunityOutcome && (
+        <div className="conversation-opportunity-outcome">
+          <OpportunityOutcome
+            introductionRequestId={
+              opportunityOutcome.introductionRequestId
+            }
+            opportunityId={
+              opportunityOutcome.opportunityId
+            }
+            conversationId={
+              opportunityOutcome.conversationId
+            }
+          />
+        </div>
+      )}
 
       <div className="border-t border-[var(--border)] pt-3">
         {error && (

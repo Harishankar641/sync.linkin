@@ -111,6 +111,15 @@ export async function POST(req: Request) {
   if (!aProfile || !bProfile) {
     return NextResponse.json({ error: "profiles_missing" }, { status: 400 });
   }
+  console.log("Conversation Twin check:", {
+  currentUserId: user.id,
+  participantA: aId,
+  participantB: bId,
+  aTwinFound: Boolean(aTwin),
+  bTwinFound: Boolean(bTwin),
+  aEmail: (aProfile as Profile).email,
+  bEmail: (bProfile as Profile).email,
+});
   if (!aTwin || !bTwin) {
     const missing = !aTwin
       ? (aProfile as Profile).display_name || "A participant"

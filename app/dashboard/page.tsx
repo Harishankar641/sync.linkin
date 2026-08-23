@@ -22,6 +22,25 @@ import { ConversationsList, type ConversationRow } from "./ConversationsList";
 import { countCompletedReferrals } from "@/lib/invite-stats";
 import { computeSyncScore } from "@/lib/sync-score";
 import { PremiumWorkspace } from "./PremiumWorkspace";
+import { findOpportunityPaths } from "@/lib/opportunity-graph";
+import { OpportunityGraph } from "./OpportunityGraph";
+import { OpportunityRadar } from "./OpportunityRadar";
+import { IntroductionRequests } from "./IntroductionRequests";
+
+function formatOpportunityType(type?: string | null): string {
+  switch (type) {
+    case "technical_collaboration":
+      return "Technical Collaboration";
+
+    default:
+      return (
+        type
+          ?.replace(/_/g, " ")
+          .replace(/\b\w/g, (c) => c.toUpperCase()) ??
+        "Opportunity"
+      );
+  }
+}
 
 export default async function DashboardPage() {
   const supabase = createClient();
@@ -30,7 +49,69 @@ export default async function DashboardPage() {
   } = await supabase.auth.getUser();
   if (!user) redirect("/login");
 
+  
   const service = createServiceClient();
+  const {
+    data: opportunitiesData,
+    error: opportunitiesError
+  } = await service
+    .from("opportunities")
+    .select(`
+      id,
+      opportunity_type,
+      title,
+      company,
+      description,
+      skills,
+      source,
+      source_url,
+      location,
+      status,
+      created_at,
+      updated_at
+    `)
+    .eq("status", "active")
+    .order("created_at", {
+      ascending: false
+    });
+
+  if (opportunitiesError) {
+    console.error(
+      "Dashboard opportunity query failed:",
+      opportunitiesError
+    );
+  }
+
+
+ const {
+    data: pendingIntroductionRequests,
+    error: introductionRequestsError
+  } = await service
+    .from("introduction_requests")
+    .select(`
+      id,
+      opportunity_id,
+      requester_id,
+      connector_id,
+      target_id,
+      status,
+      message,
+      created_at
+    `)
+    .eq("connector_id", user.id)
+    .eq("status", "pending")
+    .order("created_at", {
+      ascending: false
+    });
+
+  if (introductionRequestsError) {
+    console.error(
+      "[dashboard] introduction requests load failed",
+      introductionRequestsError
+    );
+  }
+
+
 
   // ── Invite gate DISABLED ────────────────────────────────────────────
   // Real-user feedback: the hard 2-invite requirement felt like an
@@ -49,60 +130,90 @@ export default async function DashboardPage() {
 
   // Parallelize the independent first wave: my twin, my profile, my
   // conversations, sample personas, all real users for discovery.
-  const [
-    { data: twin },
-    { data: myProfile },
-    { data: conversations },
-    { data: testPersonas },
-    { data: allRealUsers }
-  ] = await Promise.all([
-    supabase
-      .from("twin_profiles")
-      .select(
-        "user_id, goals, deal_preferences, communication_style, deal_breakers, ai_export_blob, hometown, current_city"
-      )
-      .eq("user_id", user.id)
-      .maybeSingle(),
-    supabase
-      .from("profiles")
-      .select("display_name, avatar_url")
-      .eq("id", user.id)
-      .maybeSingle(),
-    supabase
-      .from("conversations")
-      .select(
-        "id, participant_a, participant_b, status, created_at, summary, counterpart_summary, excitement_score, excitement_locked, sync_score_override"
-      )
-      .or(`participant_a.eq.${user.id},participant_b.eq.${user.id}`)
-      .order("created_at", { ascending: false })
-      // Perf cap (#271): keep dashboard responsive even for power users
-      // with hundreds of historical convos. Most recent 60 is plenty for
-      // the rendered list; archive view (TBD) can paginate.
-      .limit(60),
-    service
-      .from("profiles")
-      .select("id, display_name, email")
-      .eq("is_test_persona", true)
-      .order("display_name", { ascending: true })
-      .limit(20),
-    service
-      .from("profiles")
-      // Include created_at so we can surface NEW signups at the top of
-      // the directory (Jack: "move those new people up top of the
-      // already on syncedin part, and the discover part"). Fresh joiners
-      // are the most valuable to engage with — they're actively building
-      // their twin RIGHT NOW.
-      .select("id, display_name, email, avatar_url, created_at")
-      .eq("is_test_persona", false)
-      .neq("id", user.id)
-      // Perf cap (#271): was unbounded — scales with total signups and
-      // becomes the slowest query on dashboard once user base grows.
-      // 200 most-recently-active is more than the Find People UI shows
-      // anyway. Ordering by last_active_at puts the most relevant users
-      // first AND aligns with the discovery scoring downstream.
-      .order("last_active_at", { ascending: false, nullsFirst: false })
-      .limit(200)
-  ]);
+ const [
+  { data: twin },
+  { data: myProfile },
+  { data: conversations },
+  { data: testPersonas },
+  { data: allRealUsers },
+  { data: graphConversations },
+  { data: relationshipMemory }
+] = await Promise.all([
+  supabase
+    .from("twin_profiles")
+    .select(
+      "user_id, goals, deal_preferences, communication_style, deal_breakers, ai_export_blob, hometown, current_city"
+    )
+    .eq("user_id", user.id)
+    .maybeSingle(),
+
+  supabase
+    .from("profiles")
+    .select("display_name, avatar_url")
+    .eq("id", user.id)
+    .maybeSingle(),
+
+  supabase
+    .from("conversations")
+    .select(
+      "id, participant_a, participant_b, status, created_at, summary, counterpart_summary, excitement_score, excitement_locked, sync_score_override"
+    )
+    .or(`participant_a.eq.${user.id},participant_b.eq.${user.id}`)
+    .order("created_at", { ascending: false })
+    .limit(60),
+
+  service
+    .from("profiles")
+    .select("id, display_name, email")
+    .eq("is_test_persona", true)
+    .order("display_name", { ascending: true })
+    .limit(20),
+
+  service
+    .from("profiles")
+    .select(
+      "id, display_name, email, avatar_url, created_at"
+    )
+    .eq("is_test_persona", false)
+    .neq("id", user.id)
+    .order("last_active_at", {
+      ascending: false,
+      nullsFirst: false
+    })
+    .limit(200),
+
+  service
+    .from("conversations")
+    .select(`
+      id,
+      participant_a,
+      participant_b,
+      created_at,
+      updated_at
+    `)
+    .not("participant_a", "is", null)
+    .not("participant_b", "is", null)
+    .limit(1000),
+
+  service
+    .from("relationship_memory")
+    .select(`
+      user_id,
+      person_id,
+      relationship_type,
+      relationship_strength,
+      trust_score,
+      interaction_count,
+      last_interaction_at,
+      shared_context,
+      shared_topics,
+      successful_introductions,
+      failed_introductions,
+      notes,
+      created_at,
+      updated_at
+    `)
+]);
 
   const twinComplete = Boolean(twin?.goals);
 
@@ -407,6 +518,38 @@ export default async function DashboardPage() {
       }
     }
   }
+  /* =========================================================
+     RELATIONSHIP ACTIVITY MEMORY
+
+     Real relationship memory derived from actual message history:
+     - total messages per conversation
+     - latest interaction is tracked by lastMsgByConv
+
+     This data feeds the weighted relationship graph below.
+     ========================================================= */
+  const messageCountByConv = new Map<string, number>();
+
+  if (realConvIds.length > 0) {
+    const { data: relationshipMessages } = await service
+      .from("messages")
+      .select("conversation_id")
+      .in("conversation_id", realConvIds);
+
+    for (
+      const message of
+      (relationshipMessages ?? []) as Array<{
+        conversation_id: string;
+      }>
+    ) {
+      const conversationId = message.conversation_id;
+
+      messageCountByConv.set(
+        conversationId,
+        (messageCountByConv.get(conversationId) ?? 0) + 1
+      );
+    }
+  }
+
   const testConversations = (conversations ?? []).filter((c) =>
     isTestById.get(
       c.participant_a === user.id ? c.participant_b : c.participant_a
@@ -550,7 +693,7 @@ export default async function DashboardPage() {
   const commandFeed = [
     { icon: "◌", label: "Conversations", value: ccConversations, href: "/messages", tint: "#5b5bf5" },
     { icon: "◇", label: "Proposals landed", value: ccProposals, href: "/messages", tint: "#0f9d6b" },
-    { icon: "↗", label: "Referrals", value: completedReferrals, href: "/invite", tint: "#e0526a" },
+    { icon: "+", label: "Referrals", value: completedReferrals, href: "/invite", tint: "#e0526a" },
     { icon: "✦", label: "Twin sync", value: `${syncPct}%`, href: "/onboarding", tint: "#8b5cf6" }
   ];
   // AI Recommendation hero — the user's highest-sync real conversation right
@@ -602,6 +745,579 @@ export default async function DashboardPage() {
       offers: ice.offers
     };
   });
+
+  // Personal Opportunity Graph — first version uses SyncdIn's own
+  // Twin goals and available directory context. External social sources
+  // can be added later as permissioned signals without changing this UI.
+  /*
+   * PERSONAL OPPORTUNITY GRAPH
+   *
+   * The graph needs BOTH sides of the Twin relationship:
+   *
+   *   YOU
+   *   ├─ goals
+   *   ├─ wants
+   *   └─ offers
+   *
+   *   NETWORK PEOPLE
+   *   ├─ goals
+   *   ├─ wants
+   *   └─ offers
+   *
+   * This lets lib/opportunity-graph.ts evaluate real
+   * Wants ↔ Offers compatibility instead of only comparing
+   * another person's profile against a generic opportunity.
+   */
+  const myIce = deriveIceberg({
+    portfolio_about: null,
+    goals: twin?.goals ?? null,
+    deal_preferences: twin?.deal_preferences ?? null,
+    ai_export_blob: twin?.ai_export_blob ?? null,
+  });
+
+  const graphMe = {
+    id: user.id,
+    name:
+      (myProfile?.display_name as string) ||
+      (user.email as string) ||
+      "You",
+    company: null,
+    role: null,
+    skills: [],
+    goals: twin?.goals ?? null,
+    wants: myIce.wants ?? null,
+    offers: myIce.offers ?? null,
+    isDirectConversationPartner: false,
+  };
+
+  /*
+   * Opportunity Graph network:
+   *
+   * IMPORTANT: Do not use the discovery `directory` here.
+   * `directory` intentionally removes people already in conversations
+   * and applies the discovery UI substance/sort rules. The Opportunity
+   * Graph needs the broader real-user network so it can evaluate:
+   *
+   *   1. existing conversation partners / warm paths
+   *   2. people with no warm path yet
+   *   3. real Twin Wants ↔ Offers compatibility
+   *
+   * This is why the graph uses `allRealUsers` directly while the
+   * Discover UI continues using `directory`.
+   */
+console.log("OPPORTUNITY GRAPH USER:", {
+  authUserId: user.id,
+  authEmail: user.email,
+});
+
+console.log(
+  "OPPORTUNITY GRAPH CANDIDATE COUNT:",
+  (allRealUsers ?? []).filter(
+    (person: any) =>
+      String(person.id).trim() !==
+      String(user.id).trim()
+  ).length
+);
+
+console.log(
+  "OPPORTUNITY GRAPH CANDIDATE COUNT:",
+  (allRealUsers ?? []).filter(
+    (person: any) =>
+      String(person.id).trim() !==
+        String(user.id).trim() &&
+      String(person.email ?? "")
+        .trim()
+        .toLowerCase() !==
+        "harishankardharmalingam@gmail.com"
+  ).length
+);
+
+const graphPeople = [
+  graphMe,
+
+  ...(allRealUsers ?? [])
+    .filter(
+      (person: any) =>
+        String(person.id).trim() !== String(user.id).trim()
+    )
+    .map((person: any) => {
+      const personTwin =
+        (twinByUser.get(person.id) as any) ?? {};
+
+      const personIce = deriveIceberg({
+        portfolio_about: null,
+        goals:
+          personTwin.goals ??
+          person.goals ??
+          null,
+        deal_preferences:
+          personTwin.deal_preferences ??
+          null,
+        ai_export_blob:
+          personTwin.ai_export_blob ??
+          null,
+      });
+
+      const hasTwinData =
+        String(personTwin.goals ?? "").trim().length > 5 ||
+        String(personTwin.deal_preferences ?? "").trim().length > 5 ||
+        String(personTwin.ai_export_blob ?? "").trim().length > 80;
+
+      /*
+       * Opportunity Graph rule:
+       *
+       * A person can participate in the network graph even if
+       * their Twin is still thin.
+       *
+       * This is important because an existing relationship can
+       * still form a warm path:
+       *
+       * You → Person A → Person B
+       *
+       * The graph should not destroy that path merely because
+       * Person B has incomplete Twin data.
+       */
+      if (!hasTwinData && !existingConvoIds.has(person.id)) {
+        return null;
+      }
+
+      return {
+        id: person.id as string,
+
+        name:
+          (person.display_name as string) ||
+          (person.email as string) ||
+          "Professional",
+
+        company: null,
+        role: null,
+        skills: [],
+
+        goals:
+          personTwin.goals ??
+          person.goals ??
+          null,
+
+        wants:
+          personIce.wants ??
+          null,
+
+        offers:
+          personIce.offers ??
+          null,
+
+        isDirectConversationPartner:
+          existingConvoIds.has(person.id),
+      };
+    })
+    .filter(
+      (person): person is NonNullable<typeof person> =>
+        person !== null
+    ),
+];
+
+console.log(
+  "🔥 GRAPH PEOPLE:",
+  graphPeople.map((person: any) => ({
+    id: person.id,
+    name: person.name,
+    isDirectConversationPartner:
+      person.isDirectConversationPartner,
+  }))
+);
+  const graphPeopleMap = new Map(
+    graphPeople.map((person) => [
+      person.id,
+      person,
+    ])
+  );
+
+const graphConnections = (
+  graphConversations ?? []
+).flatMap((conversation: any) => {
+  if (
+    !conversation.participant_a ||
+    !conversation.participant_b
+  ) {
+    return [];
+  }
+
+  const from = String(
+    conversation.participant_a
+  ).trim();
+
+  const to = String(
+    conversation.participant_b
+  ).trim();
+
+  if (
+    !from ||
+    !to ||
+    from === to
+  ) {
+    return [];
+  }
+
+  /*
+   * Actual message activity for this conversation.
+   */
+  const messageCount =
+    messageCountByConv.get(
+      conversation.id
+    ) ?? 0;
+
+  /*
+   * Actual latest message.
+   *
+   * lastMsgByConv was already calculated from
+   * the messages table above.
+   */
+  const lastActivity =
+    lastMsgByConv.get(
+      conversation.id
+    ) ??
+    conversation.updated_at ??
+    conversation.created_at ??
+    null;
+
+  /*
+   * ---------------------------------------------------------
+   * Relationship strength
+   * ---------------------------------------------------------
+   *
+   * Base relationship:
+   *   20
+   *
+   * Message depth:
+   *   up to +45
+   *
+   * Recency:
+   *   up to +35
+   *
+   * Maximum:
+   *   100
+   */
+
+  let strength = 20;
+
+  /*
+   * More messages = stronger relationship.
+   *
+   * Logarithmic scaling prevents a 500-message conversation
+   * from completely dominating everything else.
+   */
+  if (messageCount > 0) {
+    strength += Math.min(
+      45,
+      Math.round(
+        Math.log2(
+          messageCount + 1
+        ) * 8
+      )
+    );
+  }
+
+  /*
+   * Recency of actual interaction.
+   */
+  if (lastActivity) {
+    const activityTime =
+      new Date(
+        lastActivity
+      ).getTime();
+
+    if (
+      Number.isFinite(
+        activityTime
+      )
+    ) {
+      const ageDays =
+        Math.max(
+          0,
+          Date.now() -
+            activityTime
+        ) /
+        (1000 * 60 * 60 * 24);
+
+      if (ageDays <= 1) {
+        strength += 35;
+      } else if (ageDays <= 7) {
+        strength += 28;
+      } else if (ageDays <= 30) {
+        strength += 20;
+      } else if (ageDays <= 90) {
+        strength += 10;
+      } else {
+        strength += 3;
+      }
+    }
+  }
+
+  strength = Math.max(
+    1,
+    Math.min(
+      100,
+      Math.round(strength)
+    )
+  );
+
+  return [
+    {
+      from,
+      to,
+      strength,
+      source:
+        "conversation" as const
+    },
+
+    {
+      from: to,
+      to: from,
+      strength,
+      source:
+        "conversation" as const
+    }
+  ];
+});
+/* =========================================================
+   WARM PATH CALCULATION
+   Find the strongest relationship path from the current
+   user to every other person in the graph.
+   ========================================================= */
+
+type WarmPathResult = {
+  targetId: string;
+  path: string[];
+  strength: number;
+};
+
+const warmPaths: WarmPathResult[] = [];
+
+const graphAdjacency =
+  new Map<
+    string,
+    Array<{
+      to: string;
+      strength: number;
+    }>
+  >();
+
+for (const connection of graphConnections) {
+  const list =
+    graphAdjacency.get(connection.from) ?? [];
+
+  list.push({
+    to: connection.to,
+    strength: connection.strength
+  });
+
+  graphAdjacency.set(
+    connection.from,
+    list
+  );
+}
+
+function findWarmPath(
+  startId: string,
+  targetId: string
+): WarmPathResult | null {
+  if (startId === targetId) {
+    return {
+      targetId,
+      path: [startId],
+      strength: 100
+    };
+  }
+
+  type State = {
+    id: string;
+    strength: number;
+    path: string[];
+  };
+
+  const queue: State[] = [
+    {
+      id: startId,
+      strength: 100,
+      path: [startId]
+    }
+  ];
+
+  const bestStrength =
+    new Map<string, number>();
+
+  bestStrength.set(
+    startId,
+    100
+  );
+
+  while (queue.length > 0) {
+    queue.sort(
+      (a, b) =>
+        b.strength -
+        a.strength
+    );
+
+    const current =
+      queue.shift()!;
+
+    if (current.id === targetId) {
+      return {
+        targetId,
+        path: current.path,
+        strength: current.strength
+      };
+    }
+
+    const neighbors =
+      graphAdjacency.get(
+        current.id
+      ) ?? [];
+
+    for (const edge of neighbors) {
+      if (
+        current.path.includes(
+          edge.to
+        )
+      ) {
+        continue;
+      }
+
+      const nextStrength =
+        Math.min(
+          current.strength,
+          edge.strength
+        );
+
+      const previousBest =
+        bestStrength.get(
+          edge.to
+        ) ?? 0;
+
+      if (
+        nextStrength <=
+        previousBest
+      ) {
+        continue;
+      }
+
+      bestStrength.set(
+        edge.to,
+        nextStrength
+      );
+
+      queue.push({
+        id: edge.to,
+        strength: nextStrength,
+        path: [
+          ...current.path,
+          edge.to
+        ]
+      });
+    }
+  }
+
+  return null;
+}
+
+/* Calculate paths from the current user. */
+for (const person of graphPeople) {
+  if (person.id === user.id) {
+    continue;
+  }
+
+  const warmPath =
+    findWarmPath(
+      user.id,
+      person.id
+    );
+
+  if (warmPath) {
+    warmPaths.push(
+      warmPath
+    );
+  }
+}
+
+console.log(
+  "🔥 WARM PATHS:",
+  warmPaths
+);
+console.log(
+  "🔥 GRAPH CONVERSATIONS:",
+  graphConversations
+);
+
+console.log(
+  "🔥 GRAPH CONNECTIONS:",
+  graphConnections
+);
+
+const graphOpportunities = (
+  opportunitiesData ?? []
+).map(
+  (opportunity: any) => ({
+    id: opportunity.id,
+    title: opportunity.title,
+    company: opportunity.company ?? null,
+    description: opportunity.description ?? "",
+    skills: Array.isArray(opportunity.skills)
+      ? opportunity.skills
+      : [],
+    opportunity_type:
+      opportunity.opportunity_type ??
+      "opportunity",
+    source:
+      opportunity.source ??
+      "database",
+    source_url:
+      opportunity.source_url ??
+      null,
+    location:
+      opportunity.location ??
+      null
+  })
+);
+
+console.log(
+  "🔥 GRAPH OPPORTUNITIES:",
+  graphOpportunities
+);
+
+
+  const opportunityGraph = findOpportunityPaths({
+    userId: user.id,
+
+    /*
+     * Keep the existing userGoals input for compatibility, but now
+     * graphPeople also contains the current user with real Twin
+     * Wants/Offers. The opportunity graph can therefore compare:
+     *
+     *   Your Wants ↔ Their Offers
+     *   Their Wants ↔ Your Offers
+     */
+    userGoals: [
+      twin?.goals ?? "",
+      twin?.deal_preferences ?? "",
+      twin?.communication_style ?? "",
+      myIce.wants ?? "",
+      myIce.offers ?? "",
+    ]
+      .filter(Boolean)
+      .join(" "),
+
+    opportunities: graphOpportunities,
+
+    people: graphPeople,
+
+    connections: graphConnections,
+
+relationshipMemory:
+  relationshipMemory ?? [],
+
+userWants: myIce.wants ?? null,
+userOffers: myIce.offers ?? null,
+  });
   // Kept as a dead reference for the hidden legacy aside below.
   const cloneSyncCard = (
     <aside
@@ -640,8 +1356,7 @@ export default async function DashboardPage() {
       {/* Scrolls to top when arriving with ?saved=1 (post-onboarding). */}
       <ScrollTopOnSaved />
 
-      <>
-        <PremiumWorkspace
+      <PremiumWorkspace
           displayName={String(myProfile?.display_name || user.email?.split("@")[0] || "there")}
           syncPercent={syncPct}
           conversationCount={ccConversations}
@@ -779,7 +1494,7 @@ export default async function DashboardPage() {
                     {ccTop.sync}% fit
                   </span>
                   <span style={{ color: "var(--amber-bright)", fontWeight: 700 }}>
-                    Open conversation →
+                    Open conversation 
                   </span>
                 </div>
               </div>
@@ -924,7 +1639,14 @@ export default async function DashboardPage() {
               </div>
             </div>
           )}
-        </section>
+
+          </section>
+
+          {/* PERSONAL OPPORTUNITY GRAPH */}
+          <OpportunityGraph
+            opportunities={opportunityGraph}
+          />
+
 
         {!twinComplete && (
           <div
@@ -975,6 +1697,10 @@ export default async function DashboardPage() {
             real outcomes the user came back for), then DiscoverSearch
             (Already on SyncedIn + Find people) below it. */}
         <div className="space-y-8">
+          <IntroductionRequests
+    requests={pendingIntroductionRequests ?? []}
+    nameById={Object.fromEntries(nameById)}
+  />
 
           {/* Real conversations — handed off to a client component
               that exposes a SYNC SCORE header, the (i) tooltip, the
@@ -1018,10 +1744,10 @@ export default async function DashboardPage() {
               <div className="twin-lab-head">
                 <div>
                   <div className="twin-lab-kicker">Twin Lab</div>
-                  <h2>Test against a sample twin</h2>
-                  <p>Pre-built twins that auto-reply. Stress-test yours before bringing real people in.</p>
+                  <h2>Conversation Twin</h2>
+                  <p></p>
                 </div>
-                <Link href="/hypernetwork" className="twin-lab-discover">Discover network <span>↗</span></Link>
+                <Link href="/hypernetwork" className="twin-lab-discover">Discover network <span>+</span></Link>
               </div>
 
               <div className="twin-lab-grid">
@@ -1035,12 +1761,12 @@ export default async function DashboardPage() {
                       <button type="submit" className="twin-sample-button">
                         <span className="twin-sample-top">
                           <span className="twin-sample-avatar" aria-hidden="true">{sampleName.slice(0, 1)}</span>
-                          <span className="twin-sample-status">AUTO-REPLY</span>
+                          <span className="twin-sample-status"></span>
                         </span>
                         <span className="twin-sample-name">{sampleName}</span>
                         <span className="twin-sample-role">{sampleRole}</span>
-                        <span className="twin-sample-goal">{personaGoal.get(p.id) || "Professional twin ready for a live test conversation."}</span>
-                        <span className="twin-sample-action">Start twin conversation <span>→</span></span>
+                        <span className="twin-sample-goal">{personaGoal.get(p.id) || "Professional twin ready for a live conversation."}</span>
+                        <span className="twin-sample-action">Start twin conversation <span></span></span>
                       </button>
                     </form>
                   );
@@ -1049,7 +1775,7 @@ export default async function DashboardPage() {
 
               {testConversations.length > 0 && (
                 <div className="twin-resume-row">
-                  <div className="twin-resume-label">Active sample conversations</div>
+                  <div className="twin-resume-label">Active conversations</div>
                   <div className="twin-resume-list">
                     {testConversations.map((c) => {
                       const otherId =
@@ -1067,7 +1793,7 @@ export default async function DashboardPage() {
                           className="twin-resume-item"
                         >
                           <span>resume: </span>{resumeName}
-                          <b>↗</b>
+                          <b></b>
                         </Link>
                       );
                     })}
@@ -1101,7 +1827,6 @@ export default async function DashboardPage() {
           <QuickFeedbackWidget surface="dashboard" />
         </div>
         </div>
-      </>
     </AppShell>
   );
 }

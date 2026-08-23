@@ -3,6 +3,7 @@ import { createClient, createServiceClient } from "@/lib/supabase/server";
 import { hasAgreement, MAX_AUTO_TURNS } from "@/lib/twin-prompt";
 import { assignConversationSlug } from "@/lib/conversationSlugServer";
 import { ChatUI } from "./ChatUI";
+import { OpportunityOutcome } from "../../dashboard/OpportunityOutcome";
 import { ConversationRail } from "./ConversationRail";
 import { Sidebar } from "../../Sidebar";
 import { MobileShell } from "../../MobileShell";
@@ -13,6 +14,7 @@ import { SyncMeter } from "../../SyncMeter";
 import Link from "next/link";
 import type { Message, AgreementResponse } from "@/lib/types";
 import { socialsFromBlob } from "@/lib/social-from-blob";
+
 
 export default async function ConversationPage({
   params,
@@ -85,7 +87,42 @@ export default async function ConversationPage({
         .eq("user_id", otherId)
         .maybeSingle()
     ]);
+  const { data: introductionForOutcome } = await service
+    .from("introduction_requests")
+    .select(`
+      id,
+      opportunity_id,
+      requester_id,
+      connector_id,
+      target_id,
+      status
+    `)
+    .eq("status", "completed")
+    .or(
+      `requester_id.eq.${conv.participant_a},requester_id.eq.${conv.participant_b}`
+    )
+    .order("responded_at", {
+      ascending: false
+    })
+    .limit(20);
 
+  const matchingIntroduction =
+    (introductionForOutcome ?? []).find((request: any) => {
+      return (
+        (
+          request.requester_id ===
+            conv.participant_a &&
+          request.target_id ===
+            conv.participant_b
+        ) ||
+        (
+          request.requester_id ===
+            conv.participant_b &&
+          request.target_id ===
+            conv.participant_a
+        )
+      );
+    }) ?? null;
   // Parallelize the conversation's own data + the sidebar profile — these
   // are independent and were previously three sequential round-trips.
   const [{ data: messages }, { data: responses }, { data: profileForSidebar }] =
@@ -410,8 +447,11 @@ export default async function ConversationPage({
           // I hover over my sync score, it is behind the vertical
           // conversation list."
           zIndex: 10,
-          overflowY: "visible",
-          overflowX: "visible"
+          // Keep the fixed App Menu independently scrollable.
+          // Prevent wide sidebar content from spilling into the
+          // Twin/Conversation areas.
+          overflowY: "auto",
+          overflowX: "hidden"
         }}
       >
         {sidebarEl}
@@ -457,6 +497,17 @@ export default async function ConversationPage({
           </div>
         </div>
       )}
+      <div
+  style={{
+    marginLeft: 432,
+    width: "calc(100% - 432px)",
+    minWidth: 0,
+    boxSizing: "border-box",
+    position: "relative"
+  }}
+></div>
+
+      <div>
       <ChatUI
       conversationId={params.id}
       selfUserId={user.id}
@@ -527,6 +578,27 @@ export default async function ConversationPage({
       }
       autoStart={autoStart}
     />
+    {matchingIntroduction && (
+  <div
+    style={{
+      marginLeft: 44,
+      width: "calc(100% - 44px)",
+      boxSizing: "border-box",
+      minWidth: 0
+    }}
+  >
+    <OpportunityOutcome
+      introductionRequestId={
+        matchingIntroduction.id
+      }
+      opportunityId={
+        matchingIntroduction.opportunity_id
+      }
+      conversationId={params.id}
+    />
+  </div>
+)}
+      </div>
     </>
   );
 }

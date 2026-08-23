@@ -19,7 +19,7 @@ const SAMPLE_TWINS = [
     key: "maya",
     code: "MDEMO TWIN",
     name: "Maya Patel",
-    role: "Technical co-founder seeking",
+    role: "Technical Co-founder seeking",
     goal: "Find a non-technical co-founder with healthcare, legal or enterprise distribution expertise to build an applied-AI company.",
     you: "I have a data and AI background and want to build a product rather than stay only in implementation work.",
     twin: "That could be complementary. I would want to know what domain you understand deeply, what you can ship yourself today, and whether you are ready to commit full-time.",

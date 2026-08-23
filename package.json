@@ -23,6 +23,7 @@
     "@capacitor/ios": "^6.1.2",
     "@capacitor/push-notifications": "^6.0.2",
     "@capacitor/share": "^6.0.2",
+    "@openrouter/sdk": "^1.2.38",
     "@supabase/ssr": "^0.5.2",
     "@supabase/supabase-js": "^2.112.3",
     "next": "14.2.15",

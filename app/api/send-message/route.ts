@@ -2,7 +2,10 @@ import { NextResponse } from "next/server";
 import { createClient, createServiceClient } from "@/lib/supabase/server";
 import { notifyNewMessage } from "@/lib/notify";
 import { editMagnitude, classifyChange } from "@/lib/edit-magnitude";
-
+import {
+  evolveRelationshipMemory,
+  isMeaningfulExchange
+} from "@/lib/relationship-memory";
 /**
  * Best-effort write of the stage-1 edit-magnitude metric onto a row. Runs as
  * a separate UPDATE (not in the insert) so that if the 0005 migration hasn't
@@ -99,6 +102,44 @@ export async function POST(req: Request) {
       { status: 500 }
     );
   }
+  
+   // Automatically evolve the relationship after a
+  // successfully sent message.
+  //
+  // Only the sender's relationship memory is updated here.
+  // The receiver's memory will be updated from their own
+  // message activity, avoiding double-counting.
+  const otherUserId =
+  conv.participant_a === user.id
+    ? conv.participant_b
+    : conv.participant_a;
+
+const meaningful = isMeaningfulExchange(
+  final_text
+);
+console.log(
+  "[send-message] evolving relationship memory",
+  {
+    userId: user.id,
+    personId: otherUserId,
+    meaningful,
+    conversationId: conversation_id
+  }
+);
+
+evolveRelationshipMemory({
+  userId: user.id,
+  personId: otherUserId,
+  event: meaningful
+    ? "meaningful_exchange"
+    : "message",
+  relationshipType: "conversation"
+}).catch((e) => {
+  console.warn(
+    "[send-message] relationship memory update failed:",
+    e
+  );
+});
 
   // Stage-1 metric: log how far the user moved the twin's draft (0 = sent
   // as-is/win .. 1 = rewritten) + the kind of correction. Best-effort.

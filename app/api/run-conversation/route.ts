@@ -129,6 +129,18 @@ export async function POST(req: Request) {
       .order("created_at", { ascending: false })
       .limit(5)
   ]);
+  console.log("RUN CONVERSATION TWIN CHECK:", {
+  currentUserId: user.id,
+  conversationId: conversation_id,
+  participantA: conv.participant_a,
+  participantB: conv.participant_b,
+  turnUserId,
+  counterpartId,
+  selfTwinFound: Boolean(selfTwin),
+  otherTwinFound: Boolean(otherTwin),
+  selfEmail: (selfProfile as Profile | null)?.email,
+  otherEmail: (otherProfile as Profile | null)?.email,
+});
 
   if (!selfTwin) {
     const who =

@@ -66,7 +66,7 @@ export function PremiumProgressCard({
           >
             {unlocked
               ? "You're on Premium — bigger context, file uploads, advanced generators."
-              : `${completedReferrals} of ${goal} referrals — invite ${remaining} more to unlock Premium free.`}
+              : `${completedReferrals} of ${goal} referrals-Invite ${remaining} more to unlock Premium free.`}
           </div>
           <p
             style={{

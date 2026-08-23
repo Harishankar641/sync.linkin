@@ -60,14 +60,14 @@ export function PremiumWorkspace({
         <div className="premium-heading-wrap">
           <div className="premium-eyebrow"><span className="signal-dot" /> SyncedIn intelligence layer</div>
           <h1>Good to see you, {firstName}.</h1>
-          <p>Your twin, your network, and your career signals — designed to move together.</p>
+          <p>Your twin, your network, and your career signals - Designed to move together.</p>
         </div>
         <div className="premium-head-actions">
           <Link href="/hypernetwork" className="premium-ghost-button">
-            Explore network <span>↗</span>
+            Explore network <span>+</span>
           </Link>
           <Link href="/career-intelligence" className="premium-primary premium-primary-large">
-            Career Intelligence <span>→</span>
+            Career Intelligence <span></span>
           </Link>
         </div>
       </header>
@@ -126,7 +126,7 @@ export function PremiumWorkspace({
                     Your twin uses your goals, context and preferences to find stronger reasons for two people to talk. Open a match to watch the real conversation and its API-backed state.
                   </p>
                   <div className="premium-mini-actions">
-                    <Link href="/messages" className="premium-secondary">View conversations <span>→</span></Link>
+                    <Link href="/messages" className="premium-secondary">View conversations <span></span></Link>
                     <Link href="/conversations/new" className="premium-secondary">Start a connection <span>+</span></Link>
                   </div>
                 </div>

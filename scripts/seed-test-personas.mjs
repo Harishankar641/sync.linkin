@@ -28,7 +28,7 @@ const supabase = createClient(url, serviceKey, {
 const personas = [
   {
     email: "sam.test@twinlink.local",
-    display_name: "Sam Chen — Seed VC",
+    display_name: "Sam Chen-Seed VC",
     goals:
       "Source and lead seed rounds in AI infrastructure, dev tools, and agent frameworks. Lead checks $500K–$2M with 50% reserves. Build a portfolio that helps founders win on technical merit and distribution. Make ~12 new investments per year.",
     deal_preferences:
@@ -40,7 +40,7 @@ const personas = [
   },
   {
     email: "maya.test@twinlink.local",
-    display_name: "Maya Patel — Technical co-founder seeking",
+    display_name: "Maya Patel-Technical Co-founder seeking",
     goals:
       "Find a non-technical co-founder with strong domain expertise (healthcare or legal) or distribution chops (enterprise sales) to start an applied-AI company. Bringing 10 years of ML/systems experience (ex-Anthropic, ex-Google Brain). Equity stage. Want to incorporate within 60 days of finding the right partner.",
     deal_preferences:
@@ -64,7 +64,7 @@ const personas = [
   },
   {
     email: "riley.test@twinlink.local",
-    display_name: "Riley Kim — Engineering Recruiter",
+    display_name: "Riley Kim - Engineering Recruiter",
     goals:
       "Place 8–12 senior engineers and engineering leaders per quarter at Series A–C AI startups. Equally focused on candidate-side (long-term placements) and company-side (active searches). Building a network of 200+ vetted senior+ AI engineers.",
     deal_preferences:
@@ -76,7 +76,7 @@ const personas = [
   },
   {
     email: "jordan.test@twinlink.local",
-    display_name: "Jordan Brooks — Angel + advisor",
+    display_name: "Jordan Brooks - Angel + advisor",
     goals:
       "Write 10–15 angel checks per year ($25K–$100K) into AI-native products I'd personally use or could see myself becoming a user of. Provide GTM and founder-coaching advice for 5–8 active founders. Maintain optionality on a future fund.",
     deal_preferences:

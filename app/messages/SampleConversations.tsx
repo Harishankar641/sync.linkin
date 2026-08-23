@@ -14,7 +14,7 @@ const samples = [
   },
   {
     name: "Maya Patel",
-    role: "Technical co-founder seeking",
+    role: "Technical Co-founder seeking",
     score: 91,
     date: "Demo",
     opening: "I'm looking for a product partner who can help turn my data and AI background into a focused company.",

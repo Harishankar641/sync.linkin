@@ -55,7 +55,7 @@ export async function setExcitement(formData: FormData) {
 const SAMPLE_PERSONAS = {
   jordan: {
     email: "jordan.test@twinlink.local",
-    display_name: "Jordan Brooks — Angel + advisor",
+    display_name: "Jordan Brooks - Angel + advisor",
     goals: "Write 10–15 angel checks per year ($25K–$100K) into AI-native products I'd personally use or could see myself becoming a user of. Provide GTM and founder-coaching advice for 5–8 active founders. Maintain optionality on a future fund.",
     deal_preferences: "Pre-seed and seed. AI-native B2C, prosumer, or vertical SaaS. Want allocation for future rounds (1–2x my initial). Will commit within one meeting if it's a fit.",
     communication_style: "Storyteller, leans on why-now and the founder's personal stake. Warm, asks about the founder and how they think. Long replies sometimes (5–8 sentences).",
@@ -63,7 +63,7 @@ const SAMPLE_PERSONAS = {
   },
   maya: {
     email: "maya.test@twinlink.local",
-    display_name: "Maya Patel — Technical co-founder seeking",
+    display_name: "Maya Patel - Technical Cofounder seeking",
     goals: "Find a non-technical co-founder with strong domain expertise in healthcare or legal, or enterprise distribution chops, to start an applied-AI company. Bringing deep ML/systems experience and looking for an equity-stage partner.",
     deal_preferences: "50/50 equity split between technical and business co-founder, 4-year vesting with 1-year cliff. Healthcare or legaltech preferred. Looking for someone who has sold deals or worked inside a regulated industry. SF Bay Area or equivalent commitment.",
     communication_style: "Thoughtful, asks probing questions about background and why-now. Technical when needed but doesn't lead with credentials. Warm. Replies in 3–5 sentence paragraphs.",
@@ -71,7 +71,7 @@ const SAMPLE_PERSONAS = {
   },
   devon: {
     email: "devon.test@twinlink.local",
-    display_name: "Devon Ramirez — B2B Partnerships",
+    display_name: "Devon Ramirez - B2B Partnerships",
     goals: "Source 15+ integration and channel partnerships for a developer platform and drive $2M+ in partner-sourced ARR by Q4.",
     deal_preferences: "Revenue share, co-marketing, or white-label integration deals. Prefer companies with active developer communities and self-serve product. 60-day pilots standard.",
     communication_style: "Friendly, moves to specifics fast, proposes a call within a couple of messages, confident but not pushy. Uses concrete numbers.",
@@ -79,7 +79,7 @@ const SAMPLE_PERSONAS = {
   },
   riley: {
     email: "riley.test@twinlink.local",
-    display_name: "Riley Kim — Engineering Recruiter",
+    display_name: "Riley Kim-Engineering Recruiter",
     goals: "Place 8–12 senior engineers and engineering leaders per quarter at Series A–C AI startups while building a vetted senior AI engineering network.",
     deal_preferences: "25% placement fee on first-year total compensation, 60-day candidate guarantee, or an embedded talent-partner retainer. Open to exceptional early-stage equity arrangements.",
     communication_style: "Quick, qualifying questions early, warm but efficient. Asks stage, role, compensation band, remote policy, and top three must-haves.",
@@ -87,7 +87,7 @@ const SAMPLE_PERSONAS = {
   },
   sam: {
     email: "sam.test@twinlink.local",
-    display_name: "Sam Chen — Seed VC",
+    display_name: "Sam Chen - Seed VC",
     goals: "Source and lead seed rounds in AI infrastructure, dev tools and agent frameworks with $500K–$2M lead checks. Build a portfolio that helps founders win on technical merit and distribution.",
     deal_preferences: "Pre-seed and seed AI infra, dev tools and agent frameworks. Strong technical co-founders and shipped product or open-source traction. SF/NYC/remote OK. Want to lead or co-lead.",
     communication_style: "Direct and substantive. Asks specific questions about traction, defensibility and team. Skeptical but engaged and will tell you exactly what would change my mind.",

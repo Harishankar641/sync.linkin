@@ -144,7 +144,7 @@ export default async function PersonalIntelligencePage() {
       blurb:
         "Starter outline for a memoir, novel, or screenplay built from the most distinctive parts of your story. Three structural options to pick from.",
       accent: "#ec4899",
-      icon: "✍️",
+      icon: "",
       unlockAt: 0
     },
     {
@@ -154,7 +154,7 @@ export default async function PersonalIntelligencePage() {
       blurb:
         "If you mentioned a business in your twin context, we sketch the potential huge-success path: TAM, GTM, the 18-month milestone arc.",
       accent: "#10b981",
-      icon: "↗",
+      icon: "$",
       unlockAt: 0
     },
     {

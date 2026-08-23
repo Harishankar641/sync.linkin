@@ -41,7 +41,7 @@ function matchReason(me: any, them: any): string {
   const themText = `${them.goals || ""} ${them.deal_preferences || ""} ${them.ai_export_blob || ""}`.toLowerCase();
   const pairs: Array<[string, string, string]> = [
     ["raising", "invest", "Funding and investment intent align."],
-    ["co-founder", "technical", "Co-founder and technical goals align."],
+    ["cofounder", "technical", "Co-founder and technical goals align."],
     ["technical", "co-founder", "Technical skills fit a co-founder need."],
     ["python", "data", "Python and data work overlap."],
     ["machine learning", "ai", "Machine learning and AI interests overlap."],

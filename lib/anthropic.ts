@@ -86,7 +86,13 @@ function isOverloaded(e: ErrLike): boolean {
 function isTransient(e: ErrLike): boolean {
   const s = e.status ?? 0;
   return (
-    isOverloaded(e) || isRateLimited(e) || s === 500 || s === 502 || s === 504
+    isOverloaded(e) ||
+    isRateLimited(e) ||
+    s === 404 ||
+    s === 500 ||
+    s === 502 ||
+    s === 503 ||
+    s === 504
   );
 }
 
@@ -477,6 +483,12 @@ type OpenAICompatProvider = {
 function openAICompatProviders(model?: string): OpenAICompatProvider[] {
   return [
     {
+      name: "deepseek",
+      apiKey: process.env.DEEPSEEK_API_KEY || "",
+      baseUrl: "https://api.deepseek.com/chat/completions",
+      model: model || process.env.DEEPSEEK_MODEL || "deepseek-chat"
+    },
+    {
       name: "groq",
       apiKey: process.env.GROQ_API_KEY || "",
       baseUrl: "https://api.groq.com/openai/v1/chat/completions",
@@ -745,7 +757,7 @@ async function create(params: CreateParams): Promise<AnthropicResponse> {
 
   if (attempts.length === 0) {
     const err: any = new Error(
-      "No AI provider configured. Set at least one of GEMINI_API_KEY, GROQ_API_KEY, " +
+      "No AI provider configured. Set at least one of GEMINI_API_KEY, DEEPSEEK_API_KEY, GROQ_API_KEY, " +
         "OPENROUTER_API_KEY, MISTRAL_API_KEY, or COHERE_API_KEY — all have free tiers " +
         "(see .env.example)."
     );
@@ -802,7 +814,7 @@ function streamCreate(
   const finalPromise: Promise<AnthropicResponse> = (async () => {
     if (attempts.length === 0) {
       const err: any = new Error(
-        "No AI provider configured. Set at least one of GEMINI_API_KEY, GROQ_API_KEY, " +
+        "No AI provider configured. Set at least one of GEMINI_API_KEY, DEEPSEEK_API_KEY, GROQ_API_KEY, " +
           "OPENROUTER_API_KEY, MISTRAL_API_KEY, or COHERE_API_KEY (see .env.example)."
       );
       err.status = 401;
