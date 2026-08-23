@@ -96,6 +96,17 @@ function isTransient(e: ErrLike): boolean {
   );
 }
 
+function shouldFallback(e: ErrLike): boolean {
+  const status = e?.status ?? 0;
+
+  return (
+    isTransient(e) ||
+    status === 401 ||
+    status === 402 ||
+    status === 403
+  );
+}
+
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 /**
@@ -778,12 +789,7 @@ async function create(params: CreateParams): Promise<AnthropicResponse> {
       // 400 (bad request — our own bug) would fail identically on every
       // provider, so surface it immediately rather than burning through
       // the whole chain for nothing.
-      if (
-  !isTransient(e) &&
-  e?.status !== 401 &&
-  e?.status !== 402 &&
-  e?.status !== 403
-) {
+  if (!shouldFallback(e)) {
   throw e;
 }
     }
@@ -836,12 +842,7 @@ function streamCreate(
         console.warn(
           `[ai-chain:stream] ${attempt.name} failed (status ${e?.status}): ${e?.message} — trying next provider`
         );
-        if (
-  !isTransient(e) &&
-  e?.status !== 401 &&
-  e?.status !== 402 &&
-  e?.status !== 403
-) {
+        if (!shouldFallback(e)) {
   throw e;
 }
       }
