@@ -46,7 +46,7 @@ export const metadata: Metadata = {
   // PNGs are PWA install icons, NOT the SyncedIn logo. Reverted so
   // Next.js auto-discovery picks the real generated icon.
   appleWebApp: {
-    capable: true,
+    
     statusBarStyle: "black-translucent",
     title: "SyncedIn"
   },
@@ -120,7 +120,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="en" data-theme="light">
+    <html lang="en" suppressHydrationWarning>
       <head>
         {/* Apply the saved theme before paint so there's no flash. */}
         <script

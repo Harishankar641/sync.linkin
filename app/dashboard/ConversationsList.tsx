@@ -376,7 +376,7 @@ export function ConversationsList({ rows }: { rows: ConversationRow[] }) {
 
           On desktop: legacy layout — avatar | text block | scores
           right rail. */}
-      <style>{`
+      <style suppressHydrationWarning>{`
         .conv-card-row { display: flex; align-items: flex-start; gap: 12px; }
         .conv-card-text { min-width: 0; flex: 1; text-decoration: none; color: inherit; display: block; }
         .conv-card-scores {
@@ -482,14 +482,14 @@ export function ConversationsList({ rows }: { rows: ConversationRow[] }) {
                       <span
                         className="text-[10px] font-semibold px-2 py-0.5 rounded-full"
                         title={`Last seen ${new Date(
-                          c.other_last_active_at!
-                        ).toLocaleString()}`}
-                        style={{
-                          color: la.color,
-                          border: `1px solid ${la.color}`,
-                          background: "transparent",
-                          letterSpacing: "0.04em"
-                        }}
+  c.other_last_active_at!
+).toISOString()}`}
+style={{
+  color: la.color,
+  border: `1px solid ${la.color}`,
+  background: "transparent",
+  letterSpacing: "0.04em"
+}}
                       >
                         {la.label}
                       </span>
