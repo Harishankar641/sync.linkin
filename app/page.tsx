@@ -65,7 +65,7 @@ export default async function HomePage() {
   return (
     <main>
       <TrackBeacon meta={{ door: "landing" }} />
-      <style>{`
+      <style suppressHydrationWarning>{`
 html[data-theme="dark"] body {
           background: #000000;
           color: #f7f9fc;
