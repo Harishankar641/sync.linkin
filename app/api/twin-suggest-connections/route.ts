@@ -61,30 +61,131 @@ export async function POST(req: Request) {
     ? `\n\n# PRIMARY DIRECTIVE FROM ${selfName.toUpperCase()}\n${selfName} wants you to find people that match this specific intent: "${intent}". Every suggestion MUST serve this intent. Use ${selfName}'s context above only as the lens that sharpens the search, not as a constraint that overrides the intent.`
     : "";
 
-  const planPrompt = `You are ${selfName}'s digital twin. Your job: figure out who ${selfName} should reach out to RIGHT NOW.
+  const planPrompt = `You are ${selfName}'s digital twin.
 
-# What ${selfName} has told you
-Goals: ${t.goals}
-Deal preferences: ${t.deal_preferences || "(not specified)"}
-Deal-breakers: ${t.deal_breakers || "(not specified)"}
-Other context: ${(t.ai_export_blob || "").slice(0, 4000)}${intentBlock}
+Your job is to determine WHO can help ${selfName} achieve their current objective.
+
+# USER CONTEXT
+
+Name:
+${selfName}
+
+Long-term goals:
+${t.goals}
+
+Deal preferences:
+${t.deal_preferences || "(not specified)"}
+
+Deal-breakers:
+${t.deal_breakers || "(not specified)"}
+
+Portfolio, skills, projects, experience and other context:
+${(t.ai_export_blob || "").slice(0, 6000)}
+
+${intent
+  ? `
+# PRIMARY USER INTENT
+
+The user explicitly asked:
+
+"${intent}"
+
+THIS INTENT IS THE PRIMARY DIRECTIVE.
+
+You MUST preserve the important entities, roles, technologies,
+companies, industries and constraints contained in the user's intent.
+
+Do NOT replace the user's intent with a different networking goal.
+
+You may use the user's profile, portfolio, skills, projects and
+experience to make the searches more precise, but the user's
+explicit intent must remain the center of every search.
+
+For example, if the user says:
+
+"AI engineers building RAG systems at Microsoft"
+
+the searches should remain focused on:
+
+- AI engineers
+- RAG
+- Microsoft
+
+Good searches include:
+
+"AI engineers building RAG systems at Microsoft"
+"Microsoft AI engineers RAG LLM systems"
+"Microsoft engineers production RAG applications"
+"Microsoft RAG engineers Azure AI Search"
+
+Bad searches would be unrelated searches such as:
+
+"software engineer referral network India"
+"AI founders"
+"data analysts"
+"general AI engineers"
+
+unless those are explicitly requested by the user.
+`
+  : `
+# NO EXPLICIT INTENT
+
+The user did not provide a specific search intent.
+
+Use the user's goals, portfolio, skills, projects and experience
+to determine the most valuable people for the user to meet.
+`}
+
+# SEARCH STRATEGY
+
+Generate 3 or 4 searches.
+
+Each search must identify a concrete person archetype and remain
+faithful to the user's current objective.
+
+For career objectives, consider:
+- hiring managers
+- recruiters
+- senior professionals
+- technical leaders
+- relevant domain experts
+
+For technical learning objectives, consider:
+- engineers
+- researchers
+- technical leaders
+- founders building the relevant technology
+
+For collaboration objectives, consider:
+- builders
+- founders
+- product leaders
+- technical experts
+
+Do not blindly search for people with the same job title.
+Find people who can realistically help achieve the objective.
+
+# OUTPUT
 
 Return ONLY valid JSON with this exact shape:
+
 {
   "suggestions": [
     {
-      "rationale": "<10-20 word, first-person explanation of why this kind of person matters to ${selfName} right now>",
-      "search_query": "<a punchy 4-10 word query that would find these people on the web. Concrete role + domain + signal.>"
-    },
-    ...
+      "rationale": "<10-20 word first-person explanation>",
+      "search_query": "<4-12 word concrete search query>"
+    }
   ]
 }
 
 Rules:
-- 3 or 4 suggestions. No more.
-- The rationale is from ${selfName}'s point of view, written as their twin would speak ("I want to find...", "These are the people who...").
-- Each search_query targets a concrete archetype (role + domain + signal), not a single named person.
-- Match the user's goals concretely. Avoid generic categories like "founders" with nothing else attached.${intent ? `\n- ALL suggestions must serve the intent "${intent}" above.` : ""}`;
+- Generate exactly 3 or 4 suggestions.
+- Keep every search tightly related to the user's explicit intent.
+- Do not invent a different objective.
+- Do not add unrelated industries or roles.
+- Use concrete role + technology + company/domain signals.
+- The rationale must be written from ${selfName}'s point of view.
+`;
 
   type Plan = { rationale: string; search_query: string };
   let plan: Plan[] = [];

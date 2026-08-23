@@ -487,6 +487,35 @@ export function DiscoverSearch({
           </button>
         )}
       </div>
+       {/* Quick goal-based discovery */}
+      <div className="mt-3">
+        <div className="retro-dim text-xs mb-2">
+          What are you trying to achieve?
+        </div>
+
+        <div className="flex flex-wrap gap-2">
+          {[
+            "I want a Data Analytics job",
+            "I want a Software Engineering job",
+            "I want an AI/ML job",
+            "I want to find a mentor",
+            "I want to meet startup founders"
+          ].map((item) => (
+            <button
+              key={item}
+              type="button"
+              onClick={() => {
+                setIntent(item);
+                askTwin(item);
+              }}
+              className="retro-button text-xs"
+            >
+              {item}
+            </button>
+          ))}
+        </div>
+      </div>
+
 
       {/* Platform-users directory — Jack's call: ALREADY-ON-SYNCEDIN users
           render ABOVE the Find People (Exa) block. They're a higher-value
@@ -881,13 +910,25 @@ export function DiscoverSearch({
                                 </button>
                               </div>
                             </div>
-                            {isOpen && p.highlights.length > 0 && (
-                              <div className="mt-3 space-y-2 text-sm">
-                                {p.highlights.map((h, i) => (
-                                  <p key={i}>{h}</p>
-                                ))}
-                              </div>
-                            )}
+                           {isOpen && p.highlights.length > 0 && (
+  <div className="mt-3 text-sm">
+    <div
+      className="retro-dim"
+      style={{
+        lineHeight: 1.6,
+        maxHeight: 120,
+        overflow: "hidden"
+      }}
+    >
+      {p.highlights
+        .slice(0, 2)
+        .map((h) => h.replace(/\s+/g, " ").trim())
+        .join(" ")
+        .slice(0, 420)}
+      {p.highlights.join(" ").length > 420 ? "…" : ""}
+    </div>
+  </div>
+)}
                             {(() => {
                               const d = getDraft(p.url);
                               if (!d || !d.draftText) return null;
