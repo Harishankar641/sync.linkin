@@ -2,8 +2,6 @@ import { NextResponse } from "next/server";
 
 import { createClient } from "@/lib/supabase/server";
 
-import { anthropic, TWIN_MODEL } from "@/lib/anthropic";
-
 type ParsedResume = {
   name: string | null;
   headline: string | null;
@@ -47,7 +45,9 @@ export async function POST(req: Request) {
   if (file instanceof File) {
     if (file.size > 8 * 1024 * 1024) {
       return NextResponse.json(
-        { error: "Resume must be 8 MB or smaller." },
+        {
+          error: "Resume must be 8 MB or smaller.",
+        },
         { status: 400 }
       );
     }
@@ -61,8 +61,16 @@ export async function POST(req: Request) {
       const bytes = new Uint8Array(await file.arrayBuffer());
 
       text = await extractPdfText(bytes);
-      console.log("PDF extracted characters:", text.length);
-console.log("PDF extracted text:", text.slice(0, 1000));
+
+      console.log(
+        "PDF extracted characters:",
+        text.length
+      );
+
+      console.log(
+        "PDF extracted text:",
+        text.slice(0, 1000)
+      );
     } else if (
       type.startsWith("text/") ||
       /\.(txt|md|csv)$/i.test(file.name)
@@ -72,7 +80,7 @@ console.log("PDF extracted text:", text.slice(0, 1000));
       return NextResponse.json(
         {
           error:
-            "Use a PDF, TXT, MD, or paste the resume text. DOCX parsing is not enabled in this build.",
+            "Use a PDF, TXT, MD, or paste the resume content. DOCX parsing is not enabled in this build.",
         },
         { status: 400 }
       );
@@ -91,54 +99,19 @@ console.log("PDF extracted text:", text.slice(0, 1000));
     );
   }
 
-  const fallback = heuristicParse(text);
+  /*
+   * No AI/Anthropic is used here.
+   * Resume information is extracted using rule-based parsing.
+   */
+  const parsed = heuristicParse(text);
 
-  try {
-    const response = await anthropic.messages.create({
-      model: TWIN_MODEL,
-      max_tokens: 1400,
-
-      system: `You are a resume parsing engine. Return ONLY valid JSON matching this schema:
-
-{"name":string|null,"headline":string|null,"summary":string|null,"skills":string[],"experience":[{"company":string,"role":string,"period":string,"highlights":string[]}],"education":[{"institution":string,"degree":string,"period":string}],"keywords":string[]}
-
-Rules: never invent facts. Normalize duplicate skills. Keep experience highlights concise. Keywords should be useful search terms for job matching. If a field is unknown use null or [].`,
-
-      messages: [
-        {
-          role: "user",
-          content: text,
-        },
-      ],
-    });
-
-    const raw = response.content
-      .filter((b: any) => b.type === "text")
-      .map((b: any) => b.text)
-      .join("")
-      .trim();
-
-    const parsed = JSON.parse(
-      raw
-        .replace(/^```json\s*/i, "")
-        .replace(/```$/i, "")
-        .trim()
-    ) as ParsedResume;
-
-    return NextResponse.json({
-      parsed: sanitize(parsed),
-      source_chars: text.length,
-    });
-  } catch {
-    return NextResponse.json({
-      parsed: fallback,
-      source_chars: text.length,
-      fallback: true,
-    });
-  }
+  return NextResponse.json({
+    parsed: sanitize(parsed),
+    source_chars: text.length,
+  });
 }
 
-function normalize(input: string) {
+function normalize(input: string): string {
   return input
     .replace(/\u0000/g, " ")
     .replace(/\r/g, "\n")
@@ -148,12 +121,11 @@ function normalize(input: string) {
 }
 
 /**
- * Extract text from a PDF using pdf-parse.
- *
- * pdf-parse@2.4.5 handles the PDF structure and text extraction
- * instead of manually reading compressed PDF streams.
+ * Extract text from PDF using pdf-parse@2.4.5.
  */
-async function extractPdfText(bytes: Uint8Array): Promise<string> {
+async function extractPdfText(
+  bytes: Uint8Array
+): Promise<string> {
   const { PDFParse } = await import("pdf-parse");
 
   const parser = new PDFParse({
@@ -169,7 +141,14 @@ async function extractPdfText(bytes: Uint8Array): Promise<string> {
   }
 }
 
-function heuristicParse(text: string): ParsedResume {
+/**
+ * Basic rule-based resume parser.
+ *
+ * No Anthropic or other AI API is used.
+ */
+function heuristicParse(
+  text: string
+): ParsedResume {
   const lines = text
     .split("\n")
     .map((s) => s.trim())
@@ -209,15 +188,19 @@ function heuristicParse(text: string): ParsedResume {
 
   const lower = text.toLowerCase();
 
-  const skills = skillBank.filter((s) => lower.includes(s));
+  const skills = skillBank.filter((skill) =>
+    lower.includes(skill)
+  );
 
   const keywords = Array.from(
     new Set(
-      text.toLowerCase().match(/[a-z][a-z0-9+#.-]{3,}/g) || []
+      text.toLowerCase().match(
+        /[a-z][a-z0-9+#.-]{3,}/g
+      ) || []
     )
   )
     .filter(
-      (w) =>
+      (word) =>
         ![
           "with",
           "from",
@@ -228,19 +211,32 @@ function heuristicParse(text: string): ParsedResume {
           "using",
           "work",
           "worked",
-        ].includes(w)
+        ].includes(word)
     )
     .slice(0, 35);
 
+  const headline =
+    lines.find((line) =>
+      /data|software|developer|analyst|engineer|student/i.test(
+        line
+      )
+    ) || null;
+
+  const summary =
+    lines
+      .slice(1, 4)
+      .join(" ")
+      .slice(0, 500) || null;
+
   return {
-    name: first && first.length < 70 ? first : null,
+    name:
+      first && first.length < 70
+        ? first
+        : null,
 
-    headline:
-      lines.find((l) =>
-        /data|software|developer|analyst|engineer|student/i.test(l)
-      ) || null,
+    headline,
 
-    summary: lines.slice(1, 4).join(" ").slice(0, 500) || null,
+    summary,
 
     skills,
 
@@ -252,7 +248,9 @@ function heuristicParse(text: string): ParsedResume {
   };
 }
 
-function sanitize(p: ParsedResume): ParsedResume {
+function sanitize(
+  p: ParsedResume
+): ParsedResume {
   return {
     name: p.name || null,
 
@@ -261,7 +259,9 @@ function sanitize(p: ParsedResume): ParsedResume {
     summary: p.summary || null,
 
     skills: Array.isArray(p.skills)
-      ? p.skills.filter(Boolean).slice(0, 60)
+      ? p.skills
+          .filter(Boolean)
+          .slice(0, 60)
       : [],
 
     experience: Array.isArray(p.experience)
@@ -273,7 +273,11 @@ function sanitize(p: ParsedResume): ParsedResume {
       : [],
 
     keywords: Array.isArray(p.keywords)
-      ? Array.from(new Set(p.keywords.filter(Boolean))).slice(0, 60)
+      ? Array.from(
+          new Set(
+            p.keywords.filter(Boolean)
+          )
+        ).slice(0, 60)
       : [],
   };
 }
