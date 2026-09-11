@@ -15,17 +15,31 @@ export const dynamic = "force-dynamic";
 
 export async function POST(req: Request) {
   let body: { name?: string; dump?: string };
+
   try {
     body = await req.json();
   } catch {
-    return NextResponse.json({ error: "invalid_json" }, { status: 400 });
+    return NextResponse.json(
+      { error: "invalid_json" },
+      { status: 400 }
+    );
   }
-  const name = (body.name ?? "").toString().trim().slice(0, 80);
-  const dump = (body.dump ?? "").toString().trim().slice(0, 8000);
+
+  const name = (body.name ?? "")
+    .toString()
+    .trim()
+    .slice(0, 80);
+
+  const dump = (body.dump ?? "")
+    .toString()
+    .trim()
+    .slice(0, 8000);
+
   if (dump.length < 20) {
     return NextResponse.json({
       error: "thin",
-      detail: "Paste a bit more about yourself to generate your portfolio."
+      detail:
+        "Paste a bit more about yourself to generate your portfolio."
     });
   }
 
@@ -50,37 +64,110 @@ Rules: Specific, grounded in the text. Never invent facts. "people" may ONLY con
         }
       ]
     });
+
     const text = r.content
       .filter((b) => b.type === "text")
       .map((b) => (b as { text: string }).text)
       .join("")
       .trim();
+
     const start = text.indexOf("{");
     const end = text.lastIndexOf("}");
-    if (start === -1 || end === -1) {
-      return NextResponse.json({ error: "generation_failed" }, { status: 500 });
+
+    if (start === -1 || end === -1 || end <= start) {
+      console.error(
+        "portfolio-preview: Anthropic did not return valid JSON boundaries."
+      );
+      console.error("Anthropic returned:", text);
+
+      return NextResponse.json(
+        {
+          error: "generation_failed",
+          detail:
+            "The AI returned an invalid response. Please try again."
+        },
+        { status: 500 }
+      );
     }
-    const parsed = JSON.parse(text.slice(start, end + 1));
+
+    let parsed: any;
+
+    try {
+      parsed = JSON.parse(
+        text.slice(start, end + 1)
+      );
+    } catch (parseError) {
+      console.error(
+        "portfolio-preview JSON parse error:",
+        parseError
+      );
+
+      console.error(
+        "Anthropic returned:",
+        text
+      );
+
+      return NextResponse.json(
+        {
+          error: "generation_failed",
+          detail:
+            "The AI returned incomplete JSON. Please try again."
+        },
+        { status: 500 }
+      );
+    }
+
     return NextResponse.json({
-      headline: String(parsed.headline ?? "").slice(0, 160),
-      about: String(parsed.about ?? "").slice(0, 600),
-      highlights: Array.isArray(parsed.highlights)
-        ? parsed.highlights.slice(0, 4).map((h: any) => String(h).slice(0, 160))
+      headline: String(
+        parsed.headline ?? ""
+      ).slice(0, 160),
+
+      about: String(
+        parsed.about ?? ""
+      ).slice(0, 600),
+
+      highlights: Array.isArray(
+        parsed.highlights
+      )
+        ? parsed.highlights
+            .slice(0, 4)
+            .map((h: any) =>
+              String(h).slice(0, 160)
+            )
         : [],
-      people: Array.isArray(parsed.people)
+
+      people: Array.isArray(
+        parsed.people
+      )
         ? parsed.people
             .slice(0, 5)
             .map((p: any) => ({
-              name: String(p?.name ?? "").slice(0, 60),
-              why: String(p?.why ?? "").slice(0, 80)
+              name: String(
+                p?.name ?? ""
+              ).slice(0, 60),
+
+              why: String(
+                p?.why ?? ""
+              ).slice(0, 80)
             }))
-            .filter((p: { name: string }) => p.name.length > 1)
+            .filter(
+              (p: { name: string }) =>
+                p.name.length > 1
+            )
         : []
     });
   } catch (e: any) {
-    console.error("portfolio-preview error", e);
+    console.error(
+      "portfolio-preview error",
+      e
+    );
+
     return NextResponse.json(
-      { error: "generation_failed", detail: e?.message ?? String(e) },
+      {
+        error: "generation_failed",
+        detail:
+          e?.message ?? String(e)
+      },
       { status: 500 }
     );
   }
